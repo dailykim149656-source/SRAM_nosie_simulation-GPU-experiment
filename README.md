@@ -43,6 +43,103 @@ These are representative snapshots only. The full experimental dump is intention
 - `reports/`: representative public report snapshots
 - `native/`: native backend source only
 
+## Technical Stack
+
+This public research snapshot is built around a Python-first simulation and validation stack, with optional layers for interactive UI, SPICE correlation, native acceleration, machine-learning benchmarking, and report generation. The repository is designed so the core simulation paths remain usable with the minimum scientific Python dependencies, while advanced workflows are enabled by optional packages and external tooling.
+
+| Layer | Technologies | Usage in Repo |
+| --- | --- | --- |
+| Core runtime | `Python` | Primary implementation language for simulation, validation, UI orchestration, and scripting |
+| Scientific computing | `NumPy`, `SciPy` | Numerical simulation, statistics, Monte Carlo analysis, and analytical modeling |
+| Visualization and UI | `Matplotlib`, `Streamlit`, `PySide6` | Plotting, browser-based exploration, and desktop application interfaces |
+| ML and benchmarking | `scikit-learn` | Benchmarking surrogate models and comparing regression approaches |
+| AI-assisted analysis | `OpenAI SDK`, `python-dotenv` | Optional research-data analysis and AI-assisted recommendations |
+| Validation and correlation | `ngspice`, `PDK configs/templates` | SPICE correlation, PDK-driven validation, and regression checks |
+| Native acceleration | `Rust`, `C++`, optional `_sram_native` | Native backend kernels and integration scaffolding for faster execution paths |
+| Reporting and packaging | `ReportLab`, `Markdown`, `CSV` | Report export, evidence-pack generation, and lightweight result packaging |
+
+Note: `requirements.txt` covers the minimum Python dependencies, while advanced UI, ML, AI, native, and reporting features are optional.
+
+## System Architecture
+
+At a high level, this repository follows an `entry points -> Python simulation core -> optional native/validation -> reports/artifacts` structure. Multiple user-facing entry points feed into a shared simulation layer, which can be extended by calibration, reliability analysis, workload translation, validation workflows, and optional native execution paths. Outputs then flow into local reports, documentation snapshots, and research artifacts.
+
+### System Overview
+
+```mermaid
+flowchart LR
+    subgraph UI["User Interfaces"]
+        CLI["CLI entry points"]
+        ST["Streamlit apps"]
+        PS["PySide6 desktop app"]
+    end
+
+    subgraph CORE["Python Simulation Core"]
+        SIM["Core simulation models"]
+        CAL["Perceptron calibration"]
+        REL["Reliability model"]
+        WLD["Workload / system translation"]
+    end
+
+    subgraph VAL["Validation and Analysis"]
+        AN["Analytical benchmark"]
+        MLB["ML benchmark"]
+        SPV["SPICE validation"]
+        SCR["Research scripts"]
+    end
+
+    subgraph NAT["Optional Native Backend"]
+        NB["native_backend.py"]
+        NS["Rust/C++ native sources"]
+    end
+
+    subgraph OUT["Outputs"]
+        RPT["reports/"]
+        DOC["docs/"]
+        ART["artifacts/ and logs"]
+    end
+
+    CLI --> SIM
+    ST --> SIM
+    PS --> SIM
+
+    SIM --> CAL
+    SIM --> REL
+    SIM --> WLD
+
+    PS --> AN
+    PS --> MLB
+    PS --> SPV
+    PS --> SCR
+
+    SIM --> NB
+    NB --> NS
+
+    SIM --> RPT
+    SIM --> ART
+    AN --> RPT
+    MLB --> RPT
+    SPV --> RPT
+    SCR --> DOC
+    SCR --> ART
+```
+
+### Execution and Validation Flow
+
+```mermaid
+flowchart LR
+    RES["Researcher"] --> CHOOSE["Choose entry point"]
+    CHOOSE --> RUN["Run simulation modules"]
+    RUN --> NATIVE["Optional native dispatch"]
+    NATIVE --> METRICS["Collect circuit metrics"]
+    METRICS --> VALIDATE["Run validation / benchmark / SPICE correlation"]
+    VALIDATE --> REPORT["Generate reports and evidence pack"]
+
+    RUN --> UIRES["Interactive UI results"]
+    REPORT --> RD["reports/ and docs/"]
+    REPORT --> ARTLOG["artifacts/ and local logs"]
+```
+
 ## Quick Start
 
 ```powershell
