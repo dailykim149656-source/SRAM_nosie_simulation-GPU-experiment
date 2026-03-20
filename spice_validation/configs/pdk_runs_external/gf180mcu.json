@@ -1,0 +1,29 @@
+{
+  "pdk_id": "gf180mcu",
+  "simulator": "ngspice",
+  "data_source": "foundry-pdk-pre-silicon",
+  "model_revision": "gf180mcu-open-local",
+  "model_root": "vendor/pdks/gf180mcu_fd_pr",
+  "macro_mode": "6t-cell",
+  "model_lib": "vendor/pdks/gf180mcu_fd_pr/models/ngspice/sm141064.ngspice",
+  "design_file": "vendor/pdks/gf180mcu_fd_pr/models/ngspice/design.ngspice",
+  "nmos_model": "nmos_3p3",
+  "pmos_model": "pmos_3p3",
+  "corner_map": {
+    "tt": "typical",
+    "ff": "ff",
+    "ss": "ss",
+    "sf": "sf",
+    "fs": "fs"
+  },
+  "corners": "tt,ff,ss,sf,fs",
+  "temps_k": "233.15,298.15,398.15",
+  "vdds": "1.62,1.80,1.98",
+  "template": "spice_validation/netlists/pdk/gf180mcu_sram6t_template.sp",
+  "spice_proxy_config": "spice_validation/calibration/default_spice_proxy.json",
+  "pdk_mismatch": {
+    "sigma_w_rel": 0.025,
+    "sigma_l_rel": 0.0,
+    "clip_sigma": 3.0
+  }
+}

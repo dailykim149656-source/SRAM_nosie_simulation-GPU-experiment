@@ -1,0 +1,15 @@
+﻿{
+  "node": "22nm",
+  "width_um": 1.00,
+  "length_um": 1.00,
+  "nominal_vdd": 0.95,
+  "leakage_mw_nominal": 1.40,
+  "snm_scale": 1.05,
+  "noise_scale": 0.92,
+  "ber_scale": 0.85,
+  "corner_factors": {
+    "tt": { "snm": 1.00, "noise": 1.00, "ber": 1.00, "leakage": 1.00 },
+    "ff": { "snm": 1.05, "noise": 0.95, "ber": 0.80, "leakage": 1.08 },
+    "ss": { "snm": 0.95, "noise": 1.06, "ber": 1.30, "leakage": 0.94 }
+  }
+}

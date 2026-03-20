@@ -1,0 +1,15 @@
+﻿{
+  "node": "14nm",
+  "width_um": 0.80,
+  "length_um": 0.80,
+  "nominal_vdd": 0.85,
+  "leakage_mw_nominal": 2.10,
+  "snm_scale": 1.00,
+  "noise_scale": 1.00,
+  "ber_scale": 1.00,
+  "corner_factors": {
+    "tt": { "snm": 1.00, "noise": 1.00, "ber": 1.00, "leakage": 1.00 },
+    "ff": { "snm": 1.04, "noise": 0.95, "ber": 0.82, "leakage": 1.10 },
+    "ss": { "snm": 0.96, "noise": 1.05, "ber": 1.25, "leakage": 0.95 }
+  }
+}

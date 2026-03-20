@@ -1,0 +1,23 @@
+{
+  "pdk_id": "ihp_sg13g2",
+  "simulator": "ngspice",
+  "data_source": "foundry-pdk-pre-silicon",
+  "model_revision": "ihp-sg13g2-open-local",
+  "model_root": "vendor/pdks/IHP-Open-PDK/ihp-sg13g2",
+  "macro_mode": "6t-cell",
+  "model_lib": "vendor/pdks/IHP-Open-PDK/ihp-sg13g2/libs.tech/ngspice/models/cornerMOSlv.lib",
+  "nmos_model": "sg13_lv_nmos",
+  "pmos_model": "sg13_lv_pmos",
+  "corner_map": {
+    "tt": "mos_tt",
+    "ff": "mos_ff",
+    "ss": "mos_ss",
+    "sf": "mos_sf",
+    "fs": "mos_fs"
+  },
+  "corners": "tt,ff,ss,sf,fs",
+  "temps_k": "233.15,298.15,398.15",
+  "vdds": "1.08,1.20,1.32",
+  "template": "spice_validation/netlists/pdk/ihp_sg13g2_sram6t_template.sp",
+  "spice_proxy_config": "spice_validation/calibration/default_spice_proxy.json"
+}

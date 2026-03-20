@@ -1,0 +1,24 @@
+{
+  "fidelity": {
+    "repeats": 20,
+    "monte_carlo_runs": 25,
+    "ber_delta_max": 0.12,
+    "noise_delta_max": 0.05,
+    "snm_delta_max": 0.01
+  },
+  "spice": {
+    "backend": "hybrid",
+    "num_cells": 64,
+    "monte_carlo_runs": 40,
+    "native_noise_enable": true,
+    "native_variability_enable": true,
+    "native_thermal_enable": true,
+    "native_seed": 20260218,
+    "data_source": "proxy-calibrated",
+    "mae_snm_mv_max": 12.0,
+    "mae_noise_max": 0.03,
+    "mae_ber_max": 0.04,
+    "mae_log10_ber_max": 0.35,
+    "max_abs_ber_delta_max": 0.06
+  }
+}

@@ -1,0 +1,27 @@
+{
+  "pdk_id": "freepdk45_openram",
+  "simulator": "ngspice",
+  "data_source": "predictive-pdk-pre-silicon",
+  "model_revision": "freepdk45-openram-local",
+  "model_root": "vendor/pdks/OpenRAM/technology/freepdk45",
+  "macro_mode": "compiled-sram",
+  "nmos_model": "NMOS_VTG",
+  "pmos_model": "PMOS_VTG",
+  "nmos_corner_pattern": "vendor/pdks/OpenRAM/technology/freepdk45/models/tran_models/models_{corner}/NMOS_VTG.inc",
+  "pmos_corner_pattern": "vendor/pdks/OpenRAM/technology/freepdk45/models/tran_models/models_{corner}/PMOS_VTG.inc",
+  "corner_map": {
+    "tt": "nom",
+    "ff": "ff",
+    "ss": "ss"
+  },
+  "corners": "tt,ff,ss",
+  "temps_k": "233.15,298.15,398.15",
+  "vdds": "0.90,1.00,1.10",
+  "template": "spice_validation/netlists/pdk/freepdk45_sram6t_template.sp",
+  "spice_proxy_config": "spice_validation/calibration/default_spice_proxy.json",
+  "pdk_mismatch": {
+    "sigma_w_rel": 0.035,
+    "sigma_l_rel": 0.0,
+    "clip_sigma": 3.0
+  }
+}

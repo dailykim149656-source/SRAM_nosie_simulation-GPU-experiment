@@ -1,0 +1,7 @@
+{
+  "snm_scale_mv": 500.0,
+  "noise_scale": 1.0,
+  "noise_write_weight": 0.5,
+  "ber_center_mv": 120.0,
+  "ber_slope_mv": 10.0
+}

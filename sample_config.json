@@ -1,0 +1,10 @@
+{
+    "temperature": 310,
+    "voltage": 1.0,
+    "num_cells": 32,
+    "noise_enable": true,
+    "data_type": "random",
+    "custom_pattern": "10101010",
+    "_description": "Sample configuration for SRAM Simulator",
+    "_notes": "This is a default configuration. Modify values as needed."
+}

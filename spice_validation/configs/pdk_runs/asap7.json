@@ -1,0 +1,21 @@
+{
+  "pdk_id": "asap7",
+  "simulator": "ngspice",
+  "data_source": "predictive-pdk-pre-silicon",
+  "model_revision": "asap7-openroad-local",
+  "model_root": "vendor/pdks/asap7_pdk_r1p7",
+  "macro_mode": "6t-cell",
+  "nmos_model": "nmos_sram",
+  "pmos_model": "pmos_sram",
+  "nmos_corner_pattern": "vendor/pdks/asap7_pdk_r1p7/models/hspice/7nm_{corner}_160803.pm",
+  "corner_map": {
+    "tt": "TT",
+    "ff": "FF",
+    "ss": "SS"
+  },
+  "corners": "tt,ff,ss",
+  "temps_k": "233.15,298.15,358.15",
+  "vdds": "0.63,0.70,0.77",
+  "template": "spice_validation/netlists/pdk/asap7_sram6t_template.sp",
+  "spice_proxy_config": "spice_validation/calibration/default_spice_proxy.json"
+}

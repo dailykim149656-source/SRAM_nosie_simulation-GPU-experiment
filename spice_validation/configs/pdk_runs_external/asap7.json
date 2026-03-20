@@ -1,0 +1,23 @@
+{
+    "pdk_id":  "asap7",
+    "simulator":  "xyce",
+    "external_sim_cmd":  "\"C:\\Program Files\\XyceNF_7.10\\bin\\Xyce.exe\" -l __LOG_PATH__ __NETLIST__",
+    "external_sim_timeout_sec":  300,
+    "data_source":  "predictive-pdk-pre-silicon",
+    "model_revision":  "asap7-openroad-local-xyce-l107",
+    "model_root":  "vendor/pdks/asap7_pdk_r1p7",
+    "macro_mode":  "6t-cell",
+    "nmos_model":  "nmos_sram",
+    "pmos_model":  "pmos_sram",
+    "nmos_corner_pattern":  "spice_validation/models/asap7_xyce/7nm_{corner}_160803_l107.pm",
+    "corner_map":  {
+                       "tt":  "TT",
+                       "ff":  "FF",
+                       "ss":  "SS"
+                   },
+    "corners":  "tt,ff,ss",
+    "temps_k":  "233.15,298.15,358.15",
+    "vdds":  "0.63,0.70,0.77",
+    "template":  "spice_validation/netlists/pdk/asap7_sram6t_xyce_template.sp",
+    "spice_proxy_config":  "spice_validation/calibration/default_spice_proxy.json"
+}

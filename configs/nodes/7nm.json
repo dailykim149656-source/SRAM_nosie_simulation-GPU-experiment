@@ -1,0 +1,15 @@
+﻿{
+  "node": "7nm",
+  "width_um": 0.60,
+  "length_um": 0.60,
+  "nominal_vdd": 0.75,
+  "leakage_mw_nominal": 3.00,
+  "snm_scale": 0.90,
+  "noise_scale": 1.12,
+  "ber_scale": 1.35,
+  "corner_factors": {
+    "tt": { "snm": 1.00, "noise": 1.00, "ber": 1.00, "leakage": 1.00 },
+    "ff": { "snm": 1.03, "noise": 0.96, "ber": 0.85, "leakage": 1.12 },
+    "ss": { "snm": 0.95, "noise": 1.06, "ber": 1.28, "leakage": 0.96 }
+  }
+}

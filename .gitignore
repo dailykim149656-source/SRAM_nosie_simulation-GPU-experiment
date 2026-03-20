@@ -1,0 +1,15 @@
+.venv/
+.venv*/
+__pycache__/
+*.pyc
+*.pyo
+.env
+research_data.json
+customer_data.json
+logs/
+artifacts/
+spice_validation/results/
+spice_validation/reports/
+native/rust_core/target/
+native/cpp_eda_bridge/build/
+_sram_native.pyd
