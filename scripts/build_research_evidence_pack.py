@@ -39,6 +39,32 @@ def extract_line_value(text: str, label: str, default: str = "n/a") -> str:
     return match.group(1).strip() if match else default
 
 
+def extract_parallel_speedup(text: str, default: str = "n/a") -> str:
+    direct = extract_line_value(text, "speedup vs baseline", default="")
+    if direct:
+        return direct
+
+    max_speedup = 0.0
+    found = False
+    for line in text.splitlines():
+        line = line.strip()
+        if not line.startswith("|") or "workers" in line or "---" in line:
+            continue
+        parts = [part.strip() for part in line.split("|")[1:-1]]
+        if len(parts) < 5:
+            continue
+        token = parts[4].replace("x", "").strip()
+        try:
+            value = float(token)
+        except ValueError:
+            continue
+        max_speedup = max(max_speedup, value)
+        found = True
+    if found:
+        return f"{max_speedup:.4f}x"
+    return default
+
+
 def build_pack(
     gate_path: Path,
     benchmark_path: Path,
@@ -47,13 +73,14 @@ def build_pack(
     roadmap_path: Path,
     raw_audit_path: Path,
     model_selection_path: Path,
+    ops_plan_summary_path: Path | None,
     tag: str,
 ) -> str:
     gate_text = read_text(gate_path)
     benchmark_text = read_text(benchmark_path)
     gate_rows = parse_gate_rows(gate_text)
     gate_pass = sum(1 for _, gate in gate_rows if gate.lower() == "pass")
-    speedup = extract_line_value(benchmark_text, "speedup vs baseline", "1.3436x")
+    speedup = extract_parallel_speedup(benchmark_text, "1.3436x")
 
     lines = [
         "# Research Evidence Pack",
@@ -83,13 +110,28 @@ def build_pack(
         f"- Representative matrix throughput speedup: `{speedup}`",
         "- Node-scaling and model-selection examples are bundled as representative snapshots only.",
         "",
+    ]
+    if ops_plan_summary_path is not None:
+        lines.extend(
+            [
+                "## Ops Plan v1",
+                "",
+                f"- Ops Plan v1 summary: `{ops_plan_summary_path.as_posix()}`",
+                "- Use this as the reproducible run log for contract hardening, model selection, performance, and node-scaling updates.",
+                "",
+            ]
+        )
+
+    lines.extend(
+        [
         "## Guardrails",
         "",
         "- Do not claim full 5/5 PDK closure.",
         "- Do not claim silicon correlation completion.",
         "- Do not claim signoff replacement.",
         "- Treat bundled reports as representative snapshots, not as the full archive.",
-    ]
+        ]
+    )
     return "\n".join(lines) + "\n"
 
 
@@ -102,6 +144,7 @@ def main() -> int:
     parser.add_argument("--roadmap-report", type=Path, default=REPO_ROOT / "docs" / "open_source_reliability_roadmap_2026-03-09.md")
     parser.add_argument("--raw-audit-report", type=Path, default=REPO_ROOT / "reports" / "raw_metric_span_audit_n27_xyce_contractfix_20260309.md")
     parser.add_argument("--model-selection-report", type=Path, default=REPO_ROOT / "reports" / "pdk_phase2_n27_xyce_contractfix_20260309" / "model_selection_sky130_spice_v2_n27_xyce_contractfix_20260309.md")
+    parser.add_argument("--ops-plan-summary", type=Path, default=None)
     parser.add_argument("--out-report", type=Path, default=REPO_ROOT / "docs" / "research_evidence_pack.md")
     parser.add_argument("--tag", default="public_snapshot")
     args = parser.parse_args()
@@ -114,6 +157,7 @@ def main() -> int:
         roadmap_path=args.roadmap_report,
         raw_audit_path=args.raw_audit_report,
         model_selection_path=args.model_selection_report,
+        ops_plan_summary_path=args.ops_plan_summary.resolve() if args.ops_plan_summary is not None else None,
         tag=str(args.tag),
     )
     args.out_report.parent.mkdir(parents=True, exist_ok=True)

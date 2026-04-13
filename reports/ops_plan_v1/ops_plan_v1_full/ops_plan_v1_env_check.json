@@ -1,0 +1,89 @@
+{
+  "checks": [
+    {
+      "name": "python_module:numpy",
+      "ok": true,
+      "detail": "ok"
+    },
+    {
+      "name": "python_module:scipy",
+      "ok": true,
+      "detail": "ok"
+    },
+    {
+      "name": "python_module:sklearn",
+      "ok": true,
+      "detail": "ok"
+    },
+    {
+      "name": "native_module:_sram_native",
+      "ok": true,
+      "detail": "ok"
+    },
+    {
+      "name": "binary:ngspice",
+      "ok": true,
+      "detail": "C:\\msys64\\ucrt64\\bin\\ngspice.exe"
+    },
+    {
+      "name": "binary:xyce",
+      "ok": true,
+      "detail": "C:\\Program Files\\XyceNF_7.10\\bin\\Xyce.exe"
+    },
+    {
+      "name": "python_module:torch",
+      "ok": true,
+      "detail": "ok"
+    },
+    {
+      "name": "cuda:torch",
+      "ok": true,
+      "detail": "NVIDIA GeForce RTX 4060 Ti"
+    },
+    {
+      "name": "config:sky130",
+      "ok": true,
+      "detail": "F:\\gpu experiment\\SRAM_nosie_simulation-GPU-experiment\\spice_validation\\configs\\pdk_runs\\sky130.json"
+    },
+    {
+      "name": "config:gf180mcu",
+      "ok": true,
+      "detail": "F:\\gpu experiment\\SRAM_nosie_simulation-GPU-experiment\\spice_validation\\configs\\pdk_runs\\gf180mcu.json"
+    },
+    {
+      "name": "config:freepdk45_openram",
+      "ok": true,
+      "detail": "F:\\gpu experiment\\SRAM_nosie_simulation-GPU-experiment\\spice_validation\\configs\\pdk_runs\\freepdk45_openram.json"
+    },
+    {
+      "name": "config:asap7",
+      "ok": true,
+      "detail": "F:\\gpu experiment\\SRAM_nosie_simulation-GPU-experiment\\spice_validation\\configs\\pdk_runs_external\\asap7.json"
+    },
+    {
+      "name": "vendor:pdks_root",
+      "ok": true,
+      "detail": "F:\\gpu experiment\\SRAM_nosie_simulation-GPU-experiment\\vendor\\pdks"
+    },
+    {
+      "name": "vendor:sky130_fd_pr",
+      "ok": true,
+      "detail": "F:\\gpu experiment\\SRAM_nosie_simulation-GPU-experiment\\vendor\\pdks\\sky130_fd_pr"
+    },
+    {
+      "name": "vendor:gf180mcu_fd_pr",
+      "ok": true,
+      "detail": "F:\\gpu experiment\\SRAM_nosie_simulation-GPU-experiment\\vendor\\pdks\\gf180mcu_fd_pr"
+    },
+    {
+      "name": "vendor:asap7_pdk_r1p7",
+      "ok": true,
+      "detail": "F:\\gpu experiment\\SRAM_nosie_simulation-GPU-experiment\\vendor\\pdks\\asap7_pdk_r1p7"
+    },
+    {
+      "name": "vendor:OpenRAM",
+      "ok": true,
+      "detail": "F:\\gpu experiment\\SRAM_nosie_simulation-GPU-experiment\\vendor\\pdks\\OpenRAM"
+    }
+  ]
+}

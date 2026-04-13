@@ -1,0 +1,5 @@
+pdk_id,primary_span,read_span,primary_status,read_status,suggested_primary_source
+asap7,325.02550342,592.263,usable,usable,spice_snm_mv_raw
+freepdk45_openram,4.28875125e-06,967.7134000000001,degenerate,usable,spice_read_snm_mv_raw
+gf180mcu,53.290280049500005,1867.964,usable,usable,spice_snm_mv_raw
+sky130,8.79296e-11,1688.2791,degenerate,usable,spice_read_snm_mv_raw

@@ -19,5 +19,9 @@
     "temps_k":  "233.15,298.15,358.15",
     "vdds":  "0.63,0.70,0.77",
     "template":  "spice_validation/netlists/pdk/asap7_sram6t_xyce_template.sp",
-    "spice_proxy_config":  "spice_validation/calibration/default_spice_proxy.json"
+    "spice_proxy_config":  "spice_validation/calibration/default_spice_proxy.json",
+    "contract_metric_sources":  {
+                                    "snm_mv":  "spice_snm_mv_raw",
+                                    "hold_snm_mv":  "spice_snm_mv_raw"
+                                }
 }

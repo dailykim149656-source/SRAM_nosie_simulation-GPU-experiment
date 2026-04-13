@@ -21,6 +21,10 @@
   "vdds": "1.62,1.80,1.98",
   "template": "spice_validation/netlists/pdk/gf180mcu_sram6t_template.sp",
   "spice_proxy_config": "spice_validation/calibration/default_spice_proxy.json",
+  "contract_metric_sources": {
+    "snm_mv": "spice_snm_mv_raw",
+    "hold_snm_mv": "spice_snm_mv_raw"
+  },
   "pdk_mismatch": {
     "sigma_w_rel": 0.025,
     "sigma_l_rel": 0.0,

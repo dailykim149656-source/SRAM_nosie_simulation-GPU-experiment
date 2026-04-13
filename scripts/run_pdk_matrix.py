@@ -44,6 +44,22 @@ def parse_pdk_ids(text: str) -> list[str]:
     return ids
 
 
+def parse_config_overrides(entries: list[str]) -> dict[str, Path]:
+    overrides: dict[str, Path] = {}
+    for entry in entries:
+        token = str(entry).strip()
+        if not token:
+            continue
+        if "=" not in token:
+            raise ValueError(f"invalid --config-override '{entry}' (expected pdk_id=path)")
+        pdk_id, path_text = token.split("=", 1)
+        pdk_key = pdk_id.strip().lower()
+        if not pdk_key:
+            raise ValueError(f"invalid --config-override '{entry}' (missing pdk_id)")
+        overrides[pdk_key] = Path(path_text.strip()).resolve()
+    return overrides
+
+
 def tail_text(text: str, max_lines: int = 25, max_chars: int = 1600) -> str:
     lines = [line for line in str(text).splitlines() if line.strip()]
     if not lines:
@@ -68,14 +84,23 @@ def run_single_pdk(
     python_bin: Path,
     runner: Path,
     config_dir: Path,
+    config_overrides: dict[str, Path],
     pdk_id: str,
     tag: str,
     timeout_sec: int,
+    max_workers: int,
+    allow_contract_fallback: bool,
+    out_root: Path | None,
 ) -> dict[str, str]:
-    config_path = config_dir / f"{pdk_id}.json"
-    out_csv = REPO_ROOT / "spice_validation" / "results" / f"spice_vs_native_pdk_{pdk_id}_{tag}.csv"
-    out_report = REPO_ROOT / "spice_validation" / "reports" / f"spice_correlation_pdk_{pdk_id}_{tag}.md"
-    raw_dir = REPO_ROOT / "spice_validation" / "results" / f"raw_{pdk_id}_{tag}"
+    config_path = config_overrides.get(pdk_id, config_dir / f"{pdk_id}.json")
+    if out_root is None:
+        out_csv = REPO_ROOT / "spice_validation" / "results" / f"spice_vs_native_pdk_{pdk_id}_{tag}.csv"
+        out_report = REPO_ROOT / "spice_validation" / "reports" / f"spice_correlation_pdk_{pdk_id}_{tag}.md"
+        raw_dir = REPO_ROOT / "spice_validation" / "results" / f"raw_{pdk_id}_{tag}"
+    else:
+        out_csv = out_root / "results" / f"spice_vs_native_pdk_{pdk_id}_{tag}.csv"
+        out_report = out_root / "reports" / f"spice_correlation_pdk_{pdk_id}_{tag}.md"
+        raw_dir = out_root / "raw" / f"{pdk_id}_{tag}"
 
     if not config_path.exists():
         return {
@@ -99,6 +124,8 @@ def run_single_pdk(
         pdk_id,
         "--pdk-config",
         str(config_path),
+        "--max-workers",
+        str(max(int(max_workers), 1)),
         "--raw-dir",
         str(raw_dir),
         "--out-csv",
@@ -106,6 +133,8 @@ def run_single_pdk(
         "--out-report",
         str(out_report),
     ]
+    if allow_contract_fallback:
+        cmd.append("--allow-contract-fallback")
 
     started = time.perf_counter()
     completed = subprocess.run(
@@ -205,11 +234,17 @@ def main() -> int:
     parser.add_argument("--pdk-ids", default=",".join(DEFAULT_PDK_IDS))
     parser.add_argument("--tag", default="matrix_fullpvt")
     parser.add_argument("--timeout-sec", type=int, default=1800)
+    parser.add_argument("--max-workers", type=int, default=1)
     parser.add_argument("--stop-on-fail", action="store_true")
     parser.add_argument(
         "--allow-blocked",
         action="store_true",
         help="treat blocked runtime-compatibility rows as non-fatal",
+    )
+    parser.add_argument(
+        "--allow-contract-fallback",
+        action="store_true",
+        help="allow contract source fallback inside run_spice_validation.py",
     )
     parser.add_argument("--python-bin", type=Path, default=REPO_ROOT / ".venv" / "Scripts" / "python.exe")
     parser.add_argument(
@@ -232,12 +267,28 @@ def main() -> int:
         type=Path,
         default=REPO_ROOT / "spice_validation" / "reports" / "pdk_matrix_summary.md",
     )
+    parser.add_argument(
+        "--config-override",
+        action="append",
+        default=[],
+        help="per-PDK config override in the form pdk_id=absolute_or_relative_path",
+    )
+    parser.add_argument(
+        "--out-root",
+        type=Path,
+        default=None,
+        help="optional root directory for per-PDK csv/report/raw outputs",
+    )
     args = parser.parse_args()
 
     pdk_ids = parse_pdk_ids(args.pdk_ids)
     python_bin = args.python_bin.resolve()
     runner = args.runner.resolve()
     config_dir = args.config_dir.resolve()
+    config_overrides = parse_config_overrides(list(args.config_override))
+    for pdk_id, path in list(config_overrides.items()):
+        if not path.is_absolute():
+            config_overrides[pdk_id] = (REPO_ROOT / path).resolve()
 
     if not python_bin.exists():
         raise FileNotFoundError(f"python binary not found: {python_bin}")
@@ -253,9 +304,13 @@ def main() -> int:
             python_bin=python_bin,
             runner=runner,
             config_dir=config_dir,
+            config_overrides=config_overrides,
             pdk_id=pdk_id,
             tag=args.tag,
             timeout_sec=args.timeout_sec,
+            max_workers=args.max_workers,
+            allow_contract_fallback=bool(args.allow_contract_fallback),
+            out_root=args.out_root.resolve() if args.out_root is not None else None,
         )
         rows.append(result)
         print(f"[{result['status']}] {pdk_id} ({result['elapsed_sec']} s)")

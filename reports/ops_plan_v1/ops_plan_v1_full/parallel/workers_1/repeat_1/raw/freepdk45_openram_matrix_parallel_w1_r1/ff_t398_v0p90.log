@@ -1,0 +1,32 @@
+
+Note: No compatibility mode selected!
+
+
+Circuit: * freepdk45/openram 6t sram ngspice template (predictive model include)
+
+Doing analysis at TEMP = 125.000000 and TNOM = 27.000000
+
+Using SPARSE 1.3 as Direct Linear Solver
+Warning: toxe, toxp and dtox all given and toxe != toxp + dtox; dtox ignored.
+Operating point simulation skipped by 'uic',
+  now using transient initial conditions.
+
+No. of Data Rows : 5040
+vq_hold             =  1.069884e-01
+vq_read             =  1.461357e-01
+vq_w0               =  5.178076e-05
+vq_w1               =  1.461359e-01
+snm_proxy           =  3.677503e-12 at=  1.000100e-09
+MEAS_CORNER=ff
+MEAS_TEMP_K=398.150000
+MEAS_VDD=0.900000
+MEAS_SNM_MV=1.83875E-09
+MEAS_NOISE=0.46231
+MEAS_BER=0.999994
+MEAS_HOLD_SNM_MV=1.83875E-09
+MEAS_READ_SNM_MV=-39.1473
+MEAS_WRITE_MARGIN_MV=146.136
+MEAS_NOISE_SIGMA=0.46231
+MEAS_READ_FAIL=0.999986
+MEAS_WRITE_FAIL=6.04068E-06
+ngspice-45.2 done

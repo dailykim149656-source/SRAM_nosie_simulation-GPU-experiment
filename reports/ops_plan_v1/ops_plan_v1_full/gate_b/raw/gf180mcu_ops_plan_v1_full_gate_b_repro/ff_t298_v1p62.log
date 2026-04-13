@@ -1,0 +1,31 @@
+
+Note: No compatibility mode selected!
+
+
+Circuit: * gf180mcu 6t sram ngspice template (real pdk deck include)
+
+Doing analysis at TEMP = 25.000000 and TNOM = 27.000000
+
+Using SPARSE 1.3 as Direct Linear Solver
+Operating point simulation skipped by 'uic',
+  now using transient initial conditions.
+
+No. of Data Rows : 5045
+vq_hold             =  1.430987e-01
+vq_read             =  2.040799e-01
+vq_w0               =  4.463082e-09
+vq_w1               =  2.040738e-01
+snm_proxy           =  2.565902e-04 at=  1.000100e-09
+MEAS_CORNER=ff
+MEAS_TEMP_K=298.150000
+MEAS_VDD=1.620000
+MEAS_SNM_MV=0.128295
+MEAS_NOISE=0.474657
+MEAS_BER=0.999994
+MEAS_HOLD_SNM_MV=0.128295
+MEAS_READ_SNM_MV=-60.8529
+MEAS_WRITE_MARGIN_MV=204.074
+MEAS_NOISE_SIGMA=0.474657
+MEAS_READ_FAIL=0.999999
+MEAS_WRITE_FAIL=4.32339E-09
+ngspice-45.2 done

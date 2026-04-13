@@ -27,6 +27,10 @@
   },
   "spice_proxy_config": "spice_validation/calibration/default_spice_proxy.json"
   ,
+  "contract_metric_sources": {
+    "snm_mv": "spice_read_snm_mv_raw",
+    "hold_snm_mv": "spice_read_snm_mv_raw"
+  },
   "pdk_mismatch": {
     "sigma_w_rel": 0.03,
     "sigma_l_rel": 0.0,

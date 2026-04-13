@@ -20,6 +20,7 @@ import csv
 import json
 import math
 import os
+import tempfile
 import random
 import re
 import shutil
@@ -171,6 +172,7 @@ class PdkContext:
     config_path: str
     corner_map: dict[str, str]
     template_vars: dict[str, str]
+    contract_metric_sources: dict[str, str]
     nmos_corner_pattern: str
     pmos_corner_pattern: str
     mismatch_sigma_w_rel: float
@@ -221,6 +223,67 @@ def safe_float(value: object, default: float = float("nan")) -> float:
     if math.isfinite(converted):
         return converted
     return float(default)
+
+
+CONTRACT_RAW_SOURCE_CANDIDATES: dict[str, tuple[str, ...]] = {
+    "snm_mv": (
+        "spice_snm_mv_raw",
+        "spice_hold_snm_mv_raw",
+        "spice_read_snm_mv_raw",
+    ),
+    "hold_snm_mv": (
+        "spice_hold_snm_mv_raw",
+        "spice_snm_mv_raw",
+        "spice_read_snm_mv_raw",
+    ),
+    "read_snm_mv": ("spice_read_snm_mv_raw",),
+    "write_margin_mv": ("spice_write_margin_mv_raw",),
+    "noise": ("spice_noise_raw",),
+    "noise_sigma": ("spice_noise_sigma_raw", "spice_noise_raw"),
+}
+
+
+def normalize_contract_raw_source(metric_name: str, raw_source_name: str | None) -> str | None:
+    if raw_source_name is None:
+        return None
+
+    metric_key = str(metric_name).strip()
+    candidates = CONTRACT_RAW_SOURCE_CANDIDATES.get(metric_key, ())
+    if not candidates:
+        return None
+
+    token = str(raw_source_name).strip()
+    if not token:
+        return None
+    if not token.endswith("_raw"):
+        token = f"{token}_raw"
+    if token in candidates:
+        return token
+    return None
+
+
+def parse_contract_metric_sources(
+    raw_sources: object,
+    *,
+    label: str,
+) -> dict[str, str]:
+    if raw_sources is None or raw_sources == "":
+        return {}
+    if not isinstance(raw_sources, dict):
+        raise ValueError(f"{label} contract_metric_sources must be an object")
+
+    out: dict[str, str] = {}
+    for metric_name, raw_source_name in raw_sources.items():
+        normalized_metric = str(metric_name).strip()
+        normalized_source = normalize_contract_raw_source(normalized_metric, str(raw_source_name))
+        if normalized_source is None:
+            supported = ", ".join(CONTRACT_RAW_SOURCE_CANDIDATES.get(normalized_metric, ()))
+            raise ValueError(
+                f"{label} contract source for '{normalized_metric}' is invalid: '{raw_source_name}' "
+                f"(supported: {supported or 'n/a'})"
+            )
+        out[normalized_metric] = normalized_source
+    return out
 
 
 def logistic_failure_from_margin(margin_mv: float, center_mv: float = 50.0, slope_mv: float = 8.0) -> float:
@@ -394,6 +457,8 @@ def metric_value_span(values: list[float]) -> float:
 def apply_snm_noise_contract(
     rows: list[dict[str, float | str | bool]],
     contract_mode: str,
+    metric_source_overrides: dict[str, str] | None = None,
+    allow_fallback: bool = False,
 ) -> dict[str, object]:
     mode = str(contract_mode).strip().lower()
     summary: dict[str, object] = {
@@ -420,11 +485,14 @@ def apply_snm_noise_contract(
                 row[raw_key] = row.get(spice_key, float("nan"))
 
     fallback_metric_raw_key = "spice_read_snm_mv_raw"
+    source_overrides = metric_source_overrides if isinstance(metric_source_overrides, dict) else {}
 
     if mode == "raw_native":
         for metric_name, spice_key, native_key, delta_key in metric_specs:
+            chosen_raw_key = normalize_contract_raw_source(metric_name, source_overrides.get(metric_name))
+            source_raw_key = chosen_raw_key or f"{spice_key}_raw"
             for row in rows:
-                spice_raw = safe_float(row.get(f"{spice_key}_raw"))
+                spice_raw = safe_float(row.get(source_raw_key))
                 row[f"{spice_key}_contract"] = spice_raw
                 row[spice_key] = spice_raw
                 native_val = safe_float(row.get(native_key))
@@ -434,9 +502,10 @@ def apply_snm_noise_contract(
                 "global_b": 0.0,
                 "global_samples": int(len(rows)),
                 "group_count": 1,
-                "source_raw_key": f"{spice_key}_raw",
-                "source_raw_span": metric_raw_span(rows, f"{spice_key}_raw"),
-                "source_finite_count": int(len(rows)),
+                "requested_raw_key": chosen_raw_key or "",
+                "source_raw_key": source_raw_key,
+                "source_raw_span": metric_raw_span(rows, source_raw_key),
+                "source_finite_count": int(metric_raw_stats(rows, source_raw_key)["finite_count"]),
                 "fallback_used": False,
                 "invalid_raw_metric": False,
                 "reason": "raw_native_identity",
@@ -446,7 +515,8 @@ def apply_snm_noise_contract(
         return summary
 
     for metric_name, spice_key, native_key, delta_key in metric_specs:
-        primary_raw_key = f"{spice_key}_raw"
+        requested_raw_key = normalize_contract_raw_source(metric_name, source_overrides.get(metric_name))
+        primary_raw_key = requested_raw_key or f"{spice_key}_raw"
         source_raw_key = primary_raw_key
         min_span = float(CONTRACT_RAW_MIN_SPAN_BY_METRIC.get(metric_name, 0.0))
         primary_stats = metric_raw_stats(rows, primary_raw_key)
@@ -460,7 +530,7 @@ def apply_snm_noise_contract(
         reason = primary_reason if invalid_raw_metric else "usable"
         fit_status = "fitted"
 
-        if metric_name in {"snm_mv", "hold_snm_mv"} and invalid_raw_metric:
+        if metric_name in {"snm_mv", "hold_snm_mv"} and invalid_raw_metric and allow_fallback:
             fallback_stats = metric_raw_stats(rows, fallback_metric_raw_key)
             fallback_valid, _ = classify_contract_raw_metric(
                 finite_count=int(fallback_stats["finite_count"]),
@@ -470,8 +540,13 @@ def apply_snm_noise_contract(
             if fallback_valid:
                 source_raw_key = fallback_metric_raw_key
                 fallback_used = True
-                reason = "fallback_to_read_snm"
+                if requested_raw_key:
+                    reason = "explicit_source_invalid_fallback_to_read_snm"
+                else:
+                    reason = "fallback_to_read_snm"
                 fit_status = "fitted_after_fallback"
+        elif invalid_raw_metric and requested_raw_key:
+            reason = "explicit_source_invalid"
 
         source_stats = metric_raw_stats(rows, source_raw_key)
         source_valid, source_reason = classify_contract_raw_metric(
@@ -548,6 +623,7 @@ def apply_snm_noise_contract(
             "global_b": float(global_b),
             "global_samples": int(global_n),
             "group_count": int(len(per_group)),
+            "requested_raw_key": requested_raw_key or "",
             "source_raw_key": source_raw_key,
             "source_raw_span": float(source_stats["span"]),
             "source_finite_count": int(source_stats["finite_count"]),
@@ -572,6 +648,18 @@ def apply_snm_noise_contract(
         native_write_fail = safe_float(row.get("native_write_fail"))
         row["delta_read_fail"] = float(native_read_fail) - float(read_fail_contract)
         row["delta_write_fail"] = float(native_write_fail) - float(write_fail_contract)
+
+    metrics_summary = summary.get("metrics", {})
+    if isinstance(metrics_summary, dict):
+        for row in rows:
+            for metric_name, item in metrics_summary.items():
+                if not isinstance(item, dict):
+                    continue
+                row[f"{metric_name}_contract_requested_raw_key"] = str(item.get("requested_raw_key", ""))
+                row[f"{metric_name}_contract_source_raw_key"] = str(item.get("source_raw_key", ""))
+                row[f"{metric_name}_contract_fallback_used"] = bool(item.get("fallback_used", False))
+                row[f"{metric_name}_contract_fit_status"] = str(item.get("fit_status", "n/a"))
+                row[f"{metric_name}_contract_reason"] = str(item.get("reason", "n/a"))
 
     return summary
 
@@ -742,6 +830,16 @@ def load_pdk_context(args: argparse.Namespace) -> PdkContext | None:
         mapped = corner_map_raw.get(key, key)
         corner_map[key] = str(mapped).strip()
 
+    contract_metric_sources_raw: dict[str, object] = {}
+    if isinstance(entry.get("contract_metric_sources"), dict):
+        contract_metric_sources_raw.update(entry.get("contract_metric_sources", {}))
+    if isinstance(cfg.get("contract_metric_sources"), dict):
+        contract_metric_sources_raw.update(cfg.get("contract_metric_sources", {}))
+    contract_metric_sources = parse_contract_metric_sources(
+        contract_metric_sources_raw,
+        label=f"PDK '{requested_pdk_id}'",
+    )
+
     model_lib_text = ""
     if "model_lib" in entry and str(entry.get("model_lib", "")).strip():
         model_lib_text = str(entry.get("model_lib", "")).strip()
@@ -816,6 +914,7 @@ def load_pdk_context(args: argparse.Namespace) -> PdkContext | None:
         config_path=str(args.pdk_config) if args.pdk_config is not None else "none",
         corner_map=corner_map,
         template_vars=template_vars,
+        contract_metric_sources=contract_metric_sources,
         nmos_corner_pattern=nmos_corner_pattern,
         pmos_corner_pattern=pmos_corner_pattern,
         mismatch_sigma_w_rel=pick_mismatch_float("sigma_w_rel", DEFAULT_PDK_MISMATCH_SIGMA_W_REL),
@@ -1005,6 +1104,62 @@ def resolve_ngspice_bin(explicit: str | None) -> str | None:
     return None
 
 
+def _looks_like_existing_file_path(value: str) -> bool:
+    token = str(value).strip()
+    if not token:
+        return False
+    try:
+        return Path(token).exists() and Path(token).is_file()
+    except OSError:
+        return False
+
+
+def _prepare_spice_workspace(
+    *,
+    raw_dir: Path,
+    case_name: str,
+    template_vars: dict[str, str] | None,
+) -> tuple[Path, dict[str, str] | None]:
+    raw_dir.mkdir(parents=True, exist_ok=True)
+    if os.name != "nt":
+        return raw_dir, template_vars
+
+    needs_local_copy = (" " in str(raw_dir.resolve()))
+    if isinstance(template_vars, dict):
+        needs_local_copy = needs_local_copy or any(
+            (" " in str(value)) and _looks_like_existing_file_path(str(value))
+            for value in template_vars.values()
+        )
+    if not needs_local_copy:
+        return raw_dir, template_vars
+
+    exec_root = Path(tempfile.gettempdir()) / "sram_spice_workspace" / case_name
+    if exec_root.exists():
+        shutil.rmtree(exec_root, ignore_errors=True)
+    exec_root.mkdir(parents=True, exist_ok=True)
+
+    localized_vars = dict(template_vars or {})
+    asset_dir = exec_root / "assets"
+    asset_dir.mkdir(parents=True, exist_ok=True)
+    copied_dirs: dict[Path, Path] = {}
+    for key, value in list(localized_vars.items()):
+        token = str(value)
+        if not _looks_like_existing_file_path(token):
+            continue
+        src_path = Path(token)
+        src_dir = src_path.parent
+        if src_dir not in copied_dirs:
+            dst_dir = asset_dir / src_dir.name
+            if dst_dir.exists():
+                shutil.rmtree(dst_dir, ignore_errors=True)
+            shutil.copytree(src_dir, dst_dir)
+            copied_dirs[src_dir] = dst_dir
+        dst_path = copied_dirs[src_dir] / src_path.name
+        localized_vars[key] = dst_path.as_posix()
+
+    return exec_root, localized_vars
+
+
 def run_spice_ngspice(
     op: OperatingPoint,
     template_text: str,
@@ -1015,9 +1170,19 @@ def run_spice_ngspice(
     case_suffix: str = "",
 ) -> dict[str, float]:
     case_name = f"{op.case_id}{case_suffix}"
-    netlist_path = raw_dir / f"{case_name}.sp"
-    log_path = raw_dir / f"{case_name}.log"
-    netlist_path.write_text(render_netlist(template_text, op, spice_proxy, template_vars), encoding="utf-8")
+    exec_dir, exec_template_vars = _prepare_spice_workspace(
+        raw_dir=raw_dir,
+        case_name=case_name,
+        template_vars=template_vars,
+    )
+    netlist_path = exec_dir / f"{case_name}.sp"
+    log_path = exec_dir / f"{case_name}.log"
+    requested_netlist_path = raw_dir / f"{case_name}.sp"
+    requested_log_path = raw_dir / f"{case_name}.log"
+    rendered = render_netlist(template_text, op, spice_proxy, exec_template_vars)
+    netlist_path.write_text(rendered, encoding="utf-8")
+    if netlist_path != requested_netlist_path:
+        requested_netlist_path.write_text(rendered, encoding="utf-8")
 
     child_env = dict(os.environ)
     bin_dir = str(Path(ngspice_bin).resolve().parent)
@@ -1040,6 +1205,8 @@ def run_spice_ngspice(
         raise RuntimeError(f"[SPICE_RUNTIME:GENERIC] ngspice failed for {op.case_id}: {err_text}")
 
     log_text = log_path.read_text(encoding="utf-8", errors="ignore")
+    if log_path != requested_log_path:
+        requested_log_path.write_text(log_text, encoding="utf-8")
     return parse_spice_log(log_text)
 
 
@@ -1121,9 +1288,16 @@ def run_spice_external(
     case_suffix: str = "",
 ) -> dict[str, float]:
     case_name = f"{op.case_id}{case_suffix}"
-    netlist_path = raw_dir / f"{case_name}.sp"
-    log_path = raw_dir / f"{case_name}.{simulator}.log"
-    rendered_netlist = render_netlist(template_text, op, spice_proxy, template_vars)
+    exec_dir, exec_template_vars = _prepare_spice_workspace(
+        raw_dir=raw_dir,
+        case_name=case_name,
+        template_vars=template_vars,
+    )
+    netlist_path = exec_dir / f"{case_name}.sp"
+    log_path = exec_dir / f"{case_name}.{simulator}.log"
+    requested_netlist_path = raw_dir / f"{case_name}.sp"
+    requested_log_path = raw_dir / f"{case_name}.{simulator}.log"
+    rendered_netlist = render_netlist(template_text, op, spice_proxy, exec_template_vars)
     rendered_netlist = adapt_external_netlist_for_simulator(
         rendered_netlist,
         simulator=simulator,
@@ -1131,6 +1305,9 @@ def run_spice_external(
         spice_proxy=spice_proxy,
     )
     netlist_path.write_text(rendered_netlist, encoding="utf-8")
+    if netlist_path != requested_netlist_path:
+        raw_dir.mkdir(parents=True, exist_ok=True)
+        requested_netlist_path.write_text(rendered_netlist, encoding="utf-8")
 
     command_template = str(external_sim_cmd or "").strip()
     if not command_template:
@@ -1145,7 +1322,7 @@ def run_spice_external(
         simulator=simulator,
         netlist_path=netlist_path,
         log_path=log_path,
-        raw_dir=raw_dir,
+        raw_dir=exec_dir,
         case_id=case_name,
     )
     try:
@@ -1165,6 +1342,8 @@ def run_spice_external(
         ) from exc
 
     log_text = log_path.read_text(encoding="utf-8", errors="ignore") if log_path.exists() else ""
+    if log_text and log_path != requested_log_path:
+        requested_log_path.write_text(log_text, encoding="utf-8")
     if completed.returncode != 0:
         failure = classify_external_sim_failure(
             completed.stderr,
@@ -1787,6 +1966,7 @@ def write_report(
         f"- Mean SPICE runtime per MC sample (ms): `{fmt_metric(spice_runtime_per_mc_ms)}`",
         f"- Mean Native runtime per operating point (ms): `{fmt_metric(mean_native_runtime_ms)}`",
         f"- SNM/Noise contract mode: `{args.snm_noise_contract_mode}`",
+        f"- Allow contract fallback: `{bool(args.allow_contract_fallback)}`",
         f"- BER contract mode: `{args.ber_contract_mode}`",
         f"- BER contract params (center/slope mV): `{fmt_metric(ber_contract_center_mv)} / {fmt_metric(ber_contract_slope_mv)}` (fit samples `{ber_contract_fit_samples}`)",
         f"- Proxy config: `{args.spice_proxy_config}`",
@@ -1829,8 +2009,8 @@ def write_report(
         "",
         "## Contract Fit Summary",
         "",
-        "| Metric | Raw Source | Span | Finite | Fallback | Invalid Raw | Reason | Fit Status | Group Fallbacks | Groups | Global a | Global b | Samples |",
-        "|---|---|---:|---:|---|---|---|---|---:|---:|---:|---:|---:|",
+        "| Metric | Requested Raw Source | Chosen Raw Source | Span | Finite | Fallback | Invalid Raw | Reason | Fit Status | Group Fallbacks | Groups | Global a | Global b | Samples |",
+        "|---|---|---|---:|---:|---|---|---|---|---:|---:|---:|---:|---:|",
     ]
     metrics_summary = snm_noise_contract_summary.get("metrics", {}) if isinstance(snm_noise_contract_summary, dict) else {}
     for metric_name in (
@@ -1843,7 +2023,8 @@ def write_report(
     ):
         item = metrics_summary.get(metric_name, {}) if isinstance(metrics_summary, dict) else {}
         lines.append(
-            f"| {metric_name} | {str(item.get('source_raw_key', 'n/a'))} | "
+            f"| {metric_name} | {str(item.get('requested_raw_key', '')) or 'n/a'} | "
+            f"{str(item.get('source_raw_key', 'n/a'))} | "
             f"{fmt_metric(safe_float(item.get('source_raw_span'), float('nan')))} | "
             f"{int(safe_float(item.get('source_finite_count'), 0.0))} | "
             f"{'yes' if bool(item.get('fallback_used', False)) else 'no'} | "
@@ -1923,6 +2104,11 @@ def main() -> int:
         choices=list(SNM_NOISE_CONTRACT_MODE_CHOICES),
         default="affine_corner_temp",
         help="SNM/noise alignment mode: raw_native|affine_global|affine_corner|affine_corner_temp",
+    )
+    parser.add_argument(
+        "--allow-contract-fallback",
+        action="store_true",
+        help="allow fallback to alternate raw contract source when explicit/primary source is invalid",
     )
     parser.add_argument("--native-noise-enable", default="true", help="true|false")
     parser.add_argument("--native-variability-enable", default="true", help="true|false")
@@ -2092,6 +2278,8 @@ def main() -> int:
     snm_noise_contract_summary = apply_snm_noise_contract(
         rows=rows,
         contract_mode=args.snm_noise_contract_mode,
+        metric_source_overrides=pdk_context.contract_metric_sources if pdk_context is not None else None,
+        allow_fallback=bool(args.allow_contract_fallback),
     )
 
     default_center_mv = float(spice_proxy["ber_center_mv"])

@@ -1,0 +1,49 @@
+workers,repeat,elapsed_sec,status,return_code,stdout_tail,stderr_tail,summary_csv,summary_report
+1,1,137.27353310000035,pass,0,"[run] gf180mcu
+[pass] gf180mcu (100.950 s)
+[run] freepdk45_openram
+[pass] freepdk45_openram (36.242 s)
+[ok] summary csv: F:\gpu experiment\SRAM_nosie_simulation-GPU-experiment\reports\ops_plan_v1\ops_plan_v1_full\parallel\workers_1\repeat_1\pdk_matrix_summary.csv
+[ok] summary report: F:\gpu experiment\SRAM_nosie_simulation-GPU-experiment\reports\ops_plan_v1\ops_plan_v1_full\parallel\workers_1\repeat_1\pdk_matrix_summary.md",,F:\gpu experiment\SRAM_nosie_simulation-GPU-experiment\reports\ops_plan_v1\ops_plan_v1_full\parallel\workers_1\repeat_1\pdk_matrix_summary.csv,F:\gpu experiment\SRAM_nosie_simulation-GPU-experiment\reports\ops_plan_v1\ops_plan_v1_full\parallel\workers_1\repeat_1\pdk_matrix_summary.md
+1,2,138.40253920000032,pass,0,"[run] gf180mcu
+[pass] gf180mcu (100.549 s)
+[run] freepdk45_openram
+[pass] freepdk45_openram (37.762 s)
+[ok] summary csv: F:\gpu experiment\SRAM_nosie_simulation-GPU-experiment\reports\ops_plan_v1\ops_plan_v1_full\parallel\workers_1\repeat_2\pdk_matrix_summary.csv
+[ok] summary report: F:\gpu experiment\SRAM_nosie_simulation-GPU-experiment\reports\ops_plan_v1\ops_plan_v1_full\parallel\workers_1\repeat_2\pdk_matrix_summary.md",,F:\gpu experiment\SRAM_nosie_simulation-GPU-experiment\reports\ops_plan_v1\ops_plan_v1_full\parallel\workers_1\repeat_2\pdk_matrix_summary.csv,F:\gpu experiment\SRAM_nosie_simulation-GPU-experiment\reports\ops_plan_v1\ops_plan_v1_full\parallel\workers_1\repeat_2\pdk_matrix_summary.md
+2,1,105.87268480000057,pass,0,"[run] gf180mcu
+[pass] gf180mcu (70.645 s)
+[run] freepdk45_openram
+[pass] freepdk45_openram (35.146 s)
+[ok] summary csv: F:\gpu experiment\SRAM_nosie_simulation-GPU-experiment\reports\ops_plan_v1\ops_plan_v1_full\parallel\workers_2\repeat_1\pdk_matrix_summary.csv
+[ok] summary report: F:\gpu experiment\SRAM_nosie_simulation-GPU-experiment\reports\ops_plan_v1\ops_plan_v1_full\parallel\workers_2\repeat_1\pdk_matrix_summary.md",,F:\gpu experiment\SRAM_nosie_simulation-GPU-experiment\reports\ops_plan_v1\ops_plan_v1_full\parallel\workers_2\repeat_1\pdk_matrix_summary.csv,F:\gpu experiment\SRAM_nosie_simulation-GPU-experiment\reports\ops_plan_v1\ops_plan_v1_full\parallel\workers_2\repeat_1\pdk_matrix_summary.md
+2,2,100.76832369999829,pass,0,"[run] gf180mcu
+[pass] gf180mcu (72.233 s)
+[run] freepdk45_openram
+[pass] freepdk45_openram (28.435 s)
+[ok] summary csv: F:\gpu experiment\SRAM_nosie_simulation-GPU-experiment\reports\ops_plan_v1\ops_plan_v1_full\parallel\workers_2\repeat_2\pdk_matrix_summary.csv
+[ok] summary report: F:\gpu experiment\SRAM_nosie_simulation-GPU-experiment\reports\ops_plan_v1\ops_plan_v1_full\parallel\workers_2\repeat_2\pdk_matrix_summary.md",,F:\gpu experiment\SRAM_nosie_simulation-GPU-experiment\reports\ops_plan_v1\ops_plan_v1_full\parallel\workers_2\repeat_2\pdk_matrix_summary.csv,F:\gpu experiment\SRAM_nosie_simulation-GPU-experiment\reports\ops_plan_v1\ops_plan_v1_full\parallel\workers_2\repeat_2\pdk_matrix_summary.md
+4,1,74.90759089999847,pass,0,"[run] gf180mcu
+[pass] gf180mcu (52.733 s)
+[run] freepdk45_openram
+[pass] freepdk45_openram (22.083 s)
+[ok] summary csv: F:\gpu experiment\SRAM_nosie_simulation-GPU-experiment\reports\ops_plan_v1\ops_plan_v1_full\parallel\workers_4\repeat_1\pdk_matrix_summary.csv
+[ok] summary report: F:\gpu experiment\SRAM_nosie_simulation-GPU-experiment\reports\ops_plan_v1\ops_plan_v1_full\parallel\workers_4\repeat_1\pdk_matrix_summary.md",,F:\gpu experiment\SRAM_nosie_simulation-GPU-experiment\reports\ops_plan_v1\ops_plan_v1_full\parallel\workers_4\repeat_1\pdk_matrix_summary.csv,F:\gpu experiment\SRAM_nosie_simulation-GPU-experiment\reports\ops_plan_v1\ops_plan_v1_full\parallel\workers_4\repeat_1\pdk_matrix_summary.md
+4,2,77.88055689999965,pass,0,"[run] gf180mcu
+[pass] gf180mcu (54.635 s)
+[run] freepdk45_openram
+[pass] freepdk45_openram (23.157 s)
+[ok] summary csv: F:\gpu experiment\SRAM_nosie_simulation-GPU-experiment\reports\ops_plan_v1\ops_plan_v1_full\parallel\workers_4\repeat_2\pdk_matrix_summary.csv
+[ok] summary report: F:\gpu experiment\SRAM_nosie_simulation-GPU-experiment\reports\ops_plan_v1\ops_plan_v1_full\parallel\workers_4\repeat_2\pdk_matrix_summary.md",,F:\gpu experiment\SRAM_nosie_simulation-GPU-experiment\reports\ops_plan_v1\ops_plan_v1_full\parallel\workers_4\repeat_2\pdk_matrix_summary.csv,F:\gpu experiment\SRAM_nosie_simulation-GPU-experiment\reports\ops_plan_v1\ops_plan_v1_full\parallel\workers_4\repeat_2\pdk_matrix_summary.md
+8,1,67.58476049999808,pass,0,"[run] gf180mcu
+[pass] gf180mcu (47.760 s)
+[run] freepdk45_openram
+[pass] freepdk45_openram (19.740 s)
+[ok] summary csv: F:\gpu experiment\SRAM_nosie_simulation-GPU-experiment\reports\ops_plan_v1\ops_plan_v1_full\parallel\workers_8\repeat_1\pdk_matrix_summary.csv
+[ok] summary report: F:\gpu experiment\SRAM_nosie_simulation-GPU-experiment\reports\ops_plan_v1\ops_plan_v1_full\parallel\workers_8\repeat_1\pdk_matrix_summary.md",,F:\gpu experiment\SRAM_nosie_simulation-GPU-experiment\reports\ops_plan_v1\ops_plan_v1_full\parallel\workers_8\repeat_1\pdk_matrix_summary.csv,F:\gpu experiment\SRAM_nosie_simulation-GPU-experiment\reports\ops_plan_v1\ops_plan_v1_full\parallel\workers_8\repeat_1\pdk_matrix_summary.md
+8,2,67.15397630000007,pass,0,"[run] gf180mcu
+[pass] gf180mcu (47.015 s)
+[run] freepdk45_openram
+[pass] freepdk45_openram (20.058 s)
+[ok] summary csv: F:\gpu experiment\SRAM_nosie_simulation-GPU-experiment\reports\ops_plan_v1\ops_plan_v1_full\parallel\workers_8\repeat_2\pdk_matrix_summary.csv
+[ok] summary report: F:\gpu experiment\SRAM_nosie_simulation-GPU-experiment\reports\ops_plan_v1\ops_plan_v1_full\parallel\workers_8\repeat_2\pdk_matrix_summary.md",,F:\gpu experiment\SRAM_nosie_simulation-GPU-experiment\reports\ops_plan_v1\ops_plan_v1_full\parallel\workers_8\repeat_2\pdk_matrix_summary.csv,F:\gpu experiment\SRAM_nosie_simulation-GPU-experiment\reports\ops_plan_v1\ops_plan_v1_full\parallel\workers_8\repeat_2\pdk_matrix_summary.md

@@ -1,0 +1,324 @@
+
+*****
+***** Welcome to the Xyce(TM) Parallel Electronic Simulator
+*****
+***** This is version XyceNF Release 7.10.0
+***** Date: Mon Apr 13 22:52:26  2026
+
+
+***** Executing netlist C:\Users\daily\AppData\Local\Temp\sram_spice_workspace\tt_t233_v0p70\tt_t233_v0p70.sp
+
+***** Reading and parsing netlist...
+Netlist warning in file
+ C:\Users\daily\AppData\Local\Temp\sram_spice_workspace\tt_t233_v0p70\tt_t233_v0p70.sp
+ at or near line 7
+ Unrecognized .OPTIONS package or parameter NOINIT will be ignored
+Netlist warning in file
+ C:\Users\daily\AppData\Local\Temp\sram_spice_workspace\tt_t233_v0p70\tt_t233_v0p70.sp
+ at or near line 8
+ Option name missing, or SPICE-style option not supported in Xyce
+Netlist warning in file
+ C:\Users\daily\AppData\Local\Temp\sram_spice_workspace\tt_t233_v0p70\tt_t233_v0p70.sp
+ at or near line 8
+ Unrecognized dot line will be ignored
+Netlist warning in file
+ C:\Users\daily\AppData\Local\Temp\sram_spice_workspace\tt_t233_v0p70\tt_t233_v0p70.sp
+ at or near line 47
+ Unrecognized dot line will be ignored
+Netlist warning: No print specified
+Netlist warning in file
+ C:/Users/daily/AppData/Local/Temp/sram_spice_workspace/tt_t233_v0p70/assets/asap7_xyce/7nm_TT_160803_l107.pm
+ at or near line 483
+ No model parameter VERSION found for model PMOS_SRAM of type PMOS, parameter
+ ignored.
+Netlist warning in file
+ C:/Users/daily/AppData/Local/Temp/sram_spice_workspace/tt_t233_v0p70/assets/asap7_xyce/7nm_TT_160803_l107.pm
+ at or near line 227
+ No model parameter VERSION found for model NMOS_SRAM of type NMOS, parameter
+ ignored.
+Netlist warning in file
+ C:/Users/daily/AppData/Local/Temp/sram_spice_workspace/tt_t233_v0p70/assets/asap7_xyce/7nm_TT_160803_l107.pm
+ at or near line 227
+ Device model NMOS_SRAM: ADMSbsimcmg: Parameter EOTACC value 1e-10 out of
+ range [ 0.1*1.0e-9,  (+inf) [
+***** Setting up topology...
+
+***** Device Count Summary ...
+       M level 107 (BSIM-CMG FINFET v107.0.0)  6
+       V level 1 (Independent Voltage Source)  4
+       -----------------------------------------
+       Total Devices                          10
+***** Setting up matrix structure...
+***** Number of Unknowns = 22
+***** Initializing...
+
+***** Beginning Transient Calculation...
+
+***** Percent complete: 1.27725 %
+***** Current system time: Mon Apr 13 22:52:26 2026
+***** Estimated time to completion:  0 sec.
+
+***** Percent complete: 2.71725 %
+***** Current system time: Mon Apr 13 22:52:26 2026
+***** Estimated time to completion:  0 sec.
+
+***** Percent complete: 4.44525 %
+***** Current system time: Mon Apr 13 22:52:26 2026
+***** Estimated time to completion:  0 sec.
+
+***** Percent complete: 6.74925 %
+***** Current system time: Mon Apr 13 22:52:26 2026
+***** Estimated time to completion:  0 sec.
+
+***** Percent complete: 11.3572 %
+***** Current system time: Mon Apr 13 22:52:26 2026
+***** Estimated time to completion:  0 sec.
+
+***** Percent complete: 18 %
+***** Current system time: Mon Apr 13 22:52:26 2026
+***** Estimated time to completion:  0 sec.
+
+***** Percent complete: 19.03 %
+***** Current system time: Mon Apr 13 22:52:26 2026
+***** Estimated time to completion:  0 sec.
+
+***** Percent complete: 20.0595 %
+***** Current system time: Mon Apr 13 22:52:26 2026
+***** Estimated time to completion:  0 sec.
+
+***** Percent complete: 21.0645 %
+***** Current system time: Mon Apr 13 22:52:26 2026
+***** Estimated time to completion:  0 sec.
+
+***** Percent complete: 22.0964 %
+***** Current system time: Mon Apr 13 22:52:26 2026
+***** Estimated time to completion:  0 sec.
+
+***** Percent complete: 23.2756 %
+***** Current system time: Mon Apr 13 22:52:26 2026
+***** Estimated time to completion:  0 sec.
+
+***** Percent complete: 25.6342 %
+***** Current system time: Mon Apr 13 22:52:26 2026
+***** Estimated time to completion:  0 sec.
+
+***** Percent complete: 30.3512 %
+***** Current system time: Mon Apr 13 22:52:26 2026
+***** Estimated time to completion:  0 sec.
+
+***** Percent complete: 39.7853 %
+***** Current system time: Mon Apr 13 22:52:26 2026
+***** Estimated time to completion:  0 sec.
+
+***** Percent complete: 41.1245 %
+***** Current system time: Mon Apr 13 22:52:26 2026
+***** Estimated time to completion:  0 sec.
+
+***** Percent complete: 42.2274 %
+***** Current system time: Mon Apr 13 22:52:26 2026
+***** Estimated time to completion:  0 sec.
+
+***** Percent complete: 44.4332 %
+***** Current system time: Mon Apr 13 22:52:26 2026
+***** Estimated time to completion:  0 sec.
+
+***** Percent complete: 48.8448 %
+***** Current system time: Mon Apr 13 22:52:26 2026
+***** Estimated time to completion:  0 sec.
+
+***** Percent complete: 57.6681 %
+***** Current system time: Mon Apr 13 22:52:26 2026
+***** Estimated time to completion:  0 sec.
+
+***** Percent complete: 59.8 %
+***** Current system time: Mon Apr 13 22:52:26 2026
+***** Estimated time to completion:  0 sec.
+
+***** Percent complete: 61.0926 %
+***** Current system time: Mon Apr 13 22:52:26 2026
+***** Estimated time to completion:  0 sec.
+
+***** Percent complete: 63.7481 %
+***** Current system time: Mon Apr 13 22:52:26 2026
+***** Estimated time to completion:  0 sec.
+
+***** Percent complete: 67.2887 %
+***** Current system time: Mon Apr 13 22:52:26 2026
+***** Estimated time to completion:  0 sec.
+
+***** Percent complete: 74.3699 %
+***** Current system time: Mon Apr 13 22:52:26 2026
+***** Estimated time to completion:  0 sec.
+
+***** Percent complete: 78 %
+***** Current system time: Mon Apr 13 22:52:26 2026
+***** Estimated time to completion:  0 sec.
+
+***** Percent complete: 79.0743 %
+***** Current system time: Mon Apr 13 22:52:26 2026
+***** Estimated time to completion:  0 sec.
+
+***** Percent complete: 80.0831 %
+***** Current system time: Mon Apr 13 22:52:26 2026
+***** Estimated time to completion:  0 sec.
+
+***** Percent complete: 81.2139 %
+***** Current system time: Mon Apr 13 22:52:26 2026
+***** Estimated time to completion:  0 sec.
+
+***** Percent complete: 82.6499 %
+***** Current system time: Mon Apr 13 22:52:26 2026
+***** Estimated time to completion:  0 sec.
+
+***** Percent complete: 84.3731 %
+***** Current system time: Mon Apr 13 22:52:26 2026
+***** Estimated time to completion:  0 sec.
+
+***** Percent complete: 86.6707 %
+***** Current system time: Mon Apr 13 22:52:26 2026
+***** Estimated time to completion:  0 sec.
+
+***** Percent complete: 91.2659 %
+***** Current system time: Mon Apr 13 22:52:26 2026
+***** Estimated time to completion:  0 sec.
+
+***** Problem read in and set up time: 0.0384907 seconds
+ ***** DCOP time: 0.0006303 seconds.  Breakdown follows:
+	Number Successful Steps Taken:		0
+	Number Failed Steps Attempted:		0
+	Number Jacobians Evaluated:		0
+	Number Linear Solves:			0
+	Number Failed Linear Solves:		0
+	Number Residual Evaluations:		0
+	Number Nonlinear Convergence Failures:	0
+	Total Residual Load Time:		0 seconds
+	Total Jacobian Load Time:		0 seconds
+	Total Linear Solution Time:		0 seconds
+
+ ***** Transient Stepping time: 0.0440729 seconds.  Breakdown follows:
+	Number Successful Steps Taken:		238
+	Number Failed Steps Attempted:		22
+	Number Jacobians Evaluated:		479
+	Number Linear Solves:			479
+	Number Failed Linear Solves:		0
+	Number Residual Evaluations:		739
+	Number Nonlinear Convergence Failures:	0
+	Total Residual Load Time:		0.0291173 seconds
+	Total Jacobian Load Time:		0.0012264 seconds
+	Total Linear Solution Time:		0.0034376 seconds
+
+
+***** Solution Summary *****
+	Number Successful Steps Taken:		238
+	Number Failed Steps Attempted:		22
+	Number Jacobians Evaluated:		479
+	Number Linear Solves:			479
+	Number Failed Linear Solves:		0
+	Number Residual Evaluations:		739
+	Number Nonlinear Convergence Failures:	0
+	Total Residual Load Time:		0.0291173 seconds
+	Total Jacobian Load Time:		0.0012264 seconds
+	Total Linear Solution Time:		0.0034376 seconds
+
+
+ ***** Measure Functions ***** 
+
+VQ_HOLD = 1.161052e-01 for AT = 9.000000e-10
+
+VQ_READ = 9.001738e-02 for AT = 1.900000e-09
+
+VQ_W0 = 4.263115e-07 for AT = 2.900000e-09
+
+VQ_W1 = 9.001742e-02 for AT = 3.900000e-09
+
+SNM_PROXY = 2.876610e-03 at time = 1.000000e-09
+Measure Start Time= 1.000000e-09	Measure End Time= 2.000000e-09
+
+SNM_MV = 1.438305e+00
+Measure Start Time= 0.000000e+00	Measure End Time= 5.000000e-09
+
+HOLD_SNM_MV = 1.438305e+00
+Measure Start Time= 0.000000e+00	Measure End Time= 5.000000e-09
+
+READ_DISTURB = 2.608784e-02
+Measure Start Time= 0.000000e+00	Measure End Time= 5.000000e-09
+
+READ_SNM_MV = -2.464953e+01
+Measure Start Time= 0.000000e+00	Measure End Time= 5.000000e-09
+
+WRITE_ERROR = 6.099826e-01
+Measure Start Time= 0.000000e+00	Measure End Time= 5.000000e-09
+
+WRITE_MARGIN_MV = 9.001742e+01
+Measure Start Time= 0.000000e+00	Measure End Time= 5.000000e-09
+
+NOISE_PROXY = 4.729702e-01
+Measure Start Time= 0.000000e+00	Measure End Time= 5.000000e-09
+
+NOISE_SIGMA = 4.729702e-01
+Measure Start Time= 0.000000e+00	Measure End Time= 5.000000e-09
+
+READ_FAIL = 9.999114e-01
+Measure Start Time= 0.000000e+00	Measure End Time= 5.000000e-09
+
+WRITE_FAIL = 6.678394e-03
+Measure Start Time= 0.000000e+00	Measure End Time= 5.000000e-09
+
+BER_PROXY = 9.999929e-01
+Measure Start Time= 0.000000e+00	Measure End Time= 5.000000e-09
+
+MEAS_SNM_MV = 1.438305e+00
+Measure Start Time= 0.000000e+00	Measure End Time= 5.000000e-09
+
+MEAS_NOISE = 4.729702e-01
+Measure Start Time= 0.000000e+00	Measure End Time= 5.000000e-09
+
+MEAS_BER = 9.999929e-01
+Measure Start Time= 0.000000e+00	Measure End Time= 5.000000e-09
+
+MEAS_HOLD_SNM_MV = 1.438305e+00
+Measure Start Time= 0.000000e+00	Measure End Time= 5.000000e-09
+
+MEAS_READ_SNM_MV = -2.464953e+01
+Measure Start Time= 0.000000e+00	Measure End Time= 5.000000e-09
+
+MEAS_WRITE_MARGIN_MV = 9.001742e+01
+Measure Start Time= 0.000000e+00	Measure End Time= 5.000000e-09
+
+MEAS_NOISE_SIGMA = 4.729702e-01
+Measure Start Time= 0.000000e+00	Measure End Time= 5.000000e-09
+
+MEAS_READ_FAIL = 9.999114e-01
+Measure Start Time= 0.000000e+00	Measure End Time= 5.000000e-09
+
+MEAS_WRITE_FAIL = 6.678394e-03
+Measure Start Time= 0.000000e+00	Measure End Time= 5.000000e-09
+
+
+***** Total Simulation Solvers Run Time: 0.047244 seconds
+***** Total Elapsed Run Time:            0.0857331 seconds
+*****
+***** End of Xyce(TM) Simulation
+*****
+
+Timing summary of 1 processor
+                 Stats                   Count       CPU Time              Wall Time
+---------------------------------------- ----- --------------------- ---------------------
+Xyce                                         1        0.046 (100.0%)        0.106 (100.0%)
+  Analysis                                   1        0.031 (67.39%)        0.045 (42.32%)
+    Transient                                1        0.031 (67.39%)        0.045 (42.31%)
+      Nonlinear Solve                      260        0.031 (67.39%)        0.039 (36.33%)
+        Residual                           739        0.031 (67.39%)        0.030 (28.05%)
+        Jacobian                           479        0.000 ( 0.00%)        0.002 ( 1.46%)
+        Linear Solve                       479        0.000 ( 0.00%)        0.004 ( 3.55%)
+      Successful Step                      238        0.000 ( 0.00%)        0.003 ( 2.46%)
+      Failed Steps                          22        0.000 ( 0.00%)        0.000 ( 0.03%)
+  Netlist Import                             1        0.015 (32.61%)        0.035 (32.63%)
+    Parse Context                            1        0.000 ( 0.00%)        0.025 (23.49%)
+    Distribute Devices                       1        0.015 (32.61%)        0.007 ( 6.63%)
+    Verify Devices                           1        0.000 ( 0.00%)        0.000 ( 0.01%)
+    Instantiate                              1        0.000 ( 0.00%)        0.000 ( 0.21%)
+  Late Initialization                        1        0.000 ( 0.00%)        0.002 ( 1.55%)
+    Global Indices                           1        0.000 ( 0.00%)        0.000 ( 0.10%)
+  Setup Matrix Structure                     1        0.000 ( 0.00%)        0.000 ( 0.21%)
+

@@ -908,6 +908,42 @@ class SRAMModelBenchmark:
         splitter = KFold(n_splits=n_splits, shuffle=True, random_state=self.random_state)
         return list(splitter.split(np.arange(n_samples))), n_splits
 
+    @staticmethod
+    def _fit_with_optional_sample_weight(estimator, X, y, sample_weight=None):
+        fit_kwargs = {}
+        if sample_weight is not None:
+            if hasattr(estimator, "named_steps") and isinstance(getattr(estimator, "named_steps", None), dict):
+                step_names = list(getattr(estimator, "named_steps", {}).keys())
+                if step_names:
+                    fit_kwargs[f"{step_names[-1]}__sample_weight"] = sample_weight
+            else:
+                fit_kwargs["sample_weight"] = sample_weight
+
+        try:
+            estimator.fit(X, y, **fit_kwargs)
+            return estimator
+        except ValueError as exc:
+            if "validation set is too small" not in str(exc).lower():
+                if fit_kwargs:
+                    estimator.fit(X, y)
+                    return estimator
+                raise
+
+            fallback_params = {}
+            for key in estimator.get_params(deep=True):
+                if key == "early_stopping" or key.endswith("__early_stopping"):
+                    fallback_params[key] = False
+            if fallback_params:
+                estimator.set_params(**fallback_params)
+            if fit_kwargs:
+                estimator.fit(X, y, **fit_kwargs)
+            else:
+                estimator.fit(X, y)
+            return estimator
+        except TypeError:
+            estimator.fit(X, y)
+            return estimator
+
     def _run_single_target(
         self,
         estimator,
@@ -944,14 +980,12 @@ class SRAMModelBenchmark:
 
             est = clone(estimator)
             train_start = time.perf_counter()
-            try:
-                if w_train is not None:
-                    est.fit(x_train, y_train, sample_weight=w_train)
-                else:
-                    est.fit(x_train, y_train)
-            except (TypeError, ValueError):
-                # Some estimators do not support sample_weight.
-                est.fit(x_train, y_train)
+            est = self._fit_with_optional_sample_weight(
+                est,
+                x_train,
+                y_train,
+                sample_weight=w_train,
+            )
             train_time = time.perf_counter() - train_start
 
             infer_start = time.perf_counter()

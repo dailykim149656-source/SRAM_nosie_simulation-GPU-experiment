@@ -12,12 +12,11 @@ import csv
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
+import numpy as np
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
-
-from ml_benchmark import SRAMModelBenchmark
 
 DATA_SOURCE_CHOICES = (
     "proxy-calibrated",
@@ -130,6 +129,148 @@ def compute_monotonic_violation_rates(dataset: dict[str, object]) -> dict[str, f
     return rates
 
 
+def find_model_record(
+    model_records: list[dict[str, object]],
+    model_name: str,
+) -> dict[str, object] | None:
+    for record in model_records:
+        if str(record.get("model")) == str(model_name):
+            return record
+    return None
+
+
+def compute_bootstrap_mae_ci(
+    y_true: np.ndarray,
+    y_pred: np.ndarray,
+    *,
+    n_bootstrap: int,
+    seed: int,
+) -> tuple[float, float, float]:
+    truth = np.asarray(y_true, dtype=float).reshape(-1)
+    pred = np.asarray(y_pred, dtype=float).reshape(-1)
+    if len(truth) == 0 or len(truth) != len(pred):
+        return float("nan"), float("nan"), float("nan")
+
+    mae = float(np.mean(np.abs(pred - truth)))
+    if len(truth) == 1 or int(n_bootstrap) <= 1:
+        return mae, mae, mae
+
+    rng = np.random.default_rng(seed)
+    boot = np.empty(int(n_bootstrap), dtype=float)
+    indices = np.arange(len(truth))
+    for idx in range(int(n_bootstrap)):
+        sampled = rng.choice(indices, size=len(indices), replace=True)
+        boot[idx] = float(np.mean(np.abs(pred[sampled] - truth[sampled])))
+
+    lo, hi = np.quantile(boot, [0.025, 0.975])
+    return mae, float(lo), float(hi)
+
+
+def compute_recommended_bootstrap_ci(
+    benchmark_result: dict[str, object],
+    model_name: str,
+    *,
+    n_bootstrap: int,
+    seed: int,
+) -> dict[str, tuple[float, float, float]]:
+    predictions = benchmark_result.get("predictions", {})
+    if not isinstance(predictions, dict):
+        return {}
+    model_predictions = predictions.get(model_name, {})
+    if not isinstance(model_predictions, dict):
+        return {}
+
+    out: dict[str, tuple[float, float, float]] = {}
+    for target_name, payload in model_predictions.items():
+        if not isinstance(payload, dict):
+            continue
+        y_true = payload.get("y_true")
+        y_pred = payload.get("y_pred")
+        if y_true is None or y_pred is None:
+            continue
+        out[str(target_name)] = compute_bootstrap_mae_ci(
+            np.asarray(y_true, dtype=float),
+            np.asarray(y_pred, dtype=float),
+            n_bootstrap=max(int(n_bootstrap), 1),
+            seed=int(seed) + len(out),
+        )
+    return out
+
+
+def compute_worst_corner_bias(
+    dataset: dict[str, object],
+    benchmark_result: dict[str, object],
+    model_name: str,
+) -> dict[str, float]:
+    rows = dataset.get("data", [])
+    predictions = benchmark_result.get("predictions", {})
+    if not isinstance(rows, list) or not rows or not isinstance(predictions, dict):
+        return {}
+    model_predictions = predictions.get(model_name, {})
+    if not isinstance(model_predictions, dict):
+        return {}
+
+    temps = np.asarray([float(row.get("temp_k", 0.0)) for row in rows], dtype=float)
+    vdds = np.asarray([float(row.get("vdd", 0.0)) for row in rows], dtype=float)
+    if temps.size == 0 or vdds.size == 0:
+        return {}
+    high_temp = float(np.quantile(temps, 0.66))
+    low_vdd = float(np.quantile(vdds, 0.34))
+
+    selected_indices = [
+        idx
+        for idx, row in enumerate(rows)
+        if str(row.get("corner", "")).strip().lower() == "ss"
+        and float(row.get("temp_k", 0.0)) >= high_temp
+        and float(row.get("vdd", 0.0)) <= low_vdd
+    ]
+    if not selected_indices:
+        return {}
+
+    out: dict[str, float] = {}
+    for target_name, payload in model_predictions.items():
+        if not isinstance(payload, dict):
+            continue
+        y_true = np.asarray(payload.get("y_true", []), dtype=float).reshape(-1)
+        y_pred = np.asarray(payload.get("y_pred", []), dtype=float).reshape(-1)
+        if len(y_true) != len(rows) or len(y_pred) != len(rows):
+            continue
+        bias = np.mean(y_pred[selected_indices] - y_true[selected_indices])
+        out[str(target_name)] = float(bias)
+    return out
+
+
+def compute_ood_guardrail_summary(dataset: dict[str, object]) -> dict[str, object]:
+    rows = dataset.get("data", [])
+    if not isinstance(rows, list) or not rows:
+        return {}
+
+    temps = np.asarray([float(row.get("temp_k", 0.0)) for row in rows], dtype=float)
+    vdds = np.asarray([float(row.get("vdd", 0.0)) for row in rows], dtype=float)
+    corners = sorted({str(row.get("corner", "")).strip().lower() for row in rows if str(row.get("corner", "")).strip()})
+    pdk_ids = sorted({str(row.get("pdk_id", "")).strip().lower() for row in rows if str(row.get("pdk_id", "")).strip()})
+
+    high_temp = float(np.quantile(temps, 0.66)) if temps.size else float("nan")
+    low_vdd = float(np.quantile(vdds, 0.34)) if vdds.size else float("nan")
+    worst_coverage = sum(
+        1
+        for row in rows
+        if str(row.get("corner", "")).strip().lower() == "ss"
+        and float(row.get("temp_k", 0.0)) >= high_temp
+        and float(row.get("vdd", 0.0)) <= low_vdd
+    )
+
+    return {
+        "temp_min": float(np.min(temps)) if temps.size else float("nan"),
+        "temp_max": float(np.max(temps)) if temps.size else float("nan"),
+        "vdd_min": float(np.min(vdds)) if vdds.size else float("nan"),
+        "vdd_max": float(np.max(vdds)) if vdds.size else float("nan"),
+        "corners": corners,
+        "pdk_ids": pdk_ids,
+        "worst_corner_rows": int(worst_coverage),
+    }
+
+
 def write_pareto_csv(
     path: Path,
     model_records: list[dict[str, object]],
@@ -183,6 +324,8 @@ def write_report(
     model_records: list[dict[str, object]],
     frontier_models: set[str],
     recommended_model: dict[str, object],
+    deployment_candidate: dict[str, object],
+    accuracy_ceiling: dict[str, object],
     r2_floor: float,
     best_r2: float,
     latency_cap: float,
@@ -192,6 +335,9 @@ def write_report(
     target_source: str,
     data_source: str,
     monotonic_rates: dict[str, float],
+    recommended_bootstrap_ci: dict[str, tuple[float, float, float]],
+    worst_corner_bias: dict[str, float],
+    ood_summary: dict[str, object],
 ) -> None:
     meta = benchmark_result["meta"]
     n_samples = int(meta.get("n_samples", 0))
@@ -255,6 +401,8 @@ def write_report(
         )
 
     rec_name = str(recommended_model["model"])
+    deployment_name = str(deployment_candidate["model"])
+    ceiling_name = str(accuracy_ceiling["model"])
     rec_targets = recommended_model["targets"]
 
     lines.extend(
@@ -263,6 +411,8 @@ def write_report(
             "## Recommendation",
             "",
             f"- Recommended model: **{rec_name}**",
+            f"- Deployment candidate: **{deployment_name}**",
+            f"- Accuracy ceiling: **{ceiling_name}**",
             f"- Rule step 1 (quality): Pareto models with R2 >= `{r2_floor:.6f}` (best Pareto R2 `{best_r2:.6f}` - tolerance `{r2_tolerance:.6f}`)",
             f"- Rule step 2 (speed): among quality candidates, keep models within `{latency_cap:.6f}` ms/sample ({latency_multiplier:.2f}x fastest quality latency), then choose best R2",
             "",
@@ -285,6 +435,50 @@ def write_report(
             "- For reproducibility, pair this file with the matching pareto CSV and fixed command lines.",
         ]
     )
+    if recommended_bootstrap_ci:
+        lines.extend(
+            [
+                "",
+                "## Bootstrap CI",
+                "",
+                "| Target | MAE | MAE 95% CI Low | MAE 95% CI High |",
+                "|---|---:|---:|---:|",
+            ]
+        )
+        for target_name, (mae, lo, hi) in recommended_bootstrap_ci.items():
+            lines.append(f"| {target_name} | {mae:.6f} | {lo:.6f} | {hi:.6f} |")
+
+    if worst_corner_bias:
+        lines.extend(
+            [
+                "",
+                "## Worst-Corner Bias",
+                "",
+                "- Definition: `SS` corner with high-temperature and low-VDD rows from the dataset envelope.",
+                "",
+                "| Target | Signed Mean Error |",
+                "|---|---:|",
+            ]
+        )
+        for target_name, bias in worst_corner_bias.items():
+            lines.append(f"| {target_name} | {bias:.6f} |")
+
+    if ood_summary:
+        corners = ", ".join(str(v) for v in ood_summary.get("corners", [])) or "n/a"
+        pdk_ids = ", ".join(str(v) for v in ood_summary.get("pdk_ids", [])) or "n/a"
+        lines.extend(
+            [
+                "",
+                "## OOD Guardrails",
+                "",
+                f"- Training temp envelope: `{float(ood_summary.get('temp_min', float('nan'))):.2f}` to `{float(ood_summary.get('temp_max', float('nan'))):.2f}` K",
+                f"- Training VDD envelope: `{float(ood_summary.get('vdd_min', float('nan'))):.4f}` to `{float(ood_summary.get('vdd_max', float('nan'))):.4f}` V",
+                f"- Corners present: `{corners}`",
+                f"- PDK IDs present: `{pdk_ids}`",
+                f"- Worst-corner rows covered: `{int(ood_summary.get('worst_corner_rows', 0))}`",
+                "- Rule-based OOD flags should trigger when a deployment sample falls outside this temp/VDD/corner envelope.",
+            ]
+        )
     if monotonic_rates:
         lines.extend(
             [
@@ -329,6 +523,8 @@ def main() -> int:
     parser.add_argument("--fail-aux-profile", default="auto", help="auto|default|sky130|gf180mcu|freepdk45_openram")
     parser.add_argument("--n-folds", type=int, default=5)
     parser.add_argument("--random-state", type=int, default=42)
+    parser.add_argument("--bootstrap-samples", type=int, default=200)
+    parser.add_argument("--bootstrap-seed", type=int, default=1234)
     parser.add_argument("--r2-tolerance", type=float, default=0.02)
     parser.add_argument("--latency-multiplier", type=float, default=2.0)
     parser.add_argument(
@@ -347,6 +543,8 @@ def main() -> int:
         default=REPO_ROOT / "reports" / "model_selection_report.md",
     )
     args = parser.parse_args()
+    from ml_benchmark import SRAMModelBenchmark
+
     args.risk_weighting = parse_bool_arg(args.risk_weighting)
     args.target_normalize = parse_bool_arg(args.target_normalize)
     args.target_prob_logit = parse_bool_arg(args.target_prob_logit)
@@ -381,15 +579,37 @@ def main() -> int:
         r2_tolerance=float(args.r2_tolerance),
         latency_multiplier=float(args.latency_multiplier),
     )
+    deployment_candidate = (
+        find_model_record(model_records, "MLP 2-layer (Perceptron Gate)")
+        or recommended_model
+    )
+    accuracy_ceiling = (
+        find_model_record(model_records, "MLP 3-layer (sklearn)")
+        or model_records[0]
+    )
 
     write_pareto_csv(args.pareto_csv, model_records, frontier_models)
     monotonic_rates = compute_monotonic_violation_rates(dataset)
+    recommended_bootstrap_ci = compute_recommended_bootstrap_ci(
+        result,
+        str(recommended_model["model"]),
+        n_bootstrap=max(int(args.bootstrap_samples), 1),
+        seed=int(args.bootstrap_seed),
+    )
+    worst_corner_bias = compute_worst_corner_bias(
+        dataset,
+        result,
+        str(recommended_model["model"]),
+    )
+    ood_summary = compute_ood_guardrail_summary(dataset)
     write_report(
         path=args.report_path,
         benchmark_result=result,
         model_records=model_records,
         frontier_models=frontier_models,
         recommended_model=recommended_model,
+        deployment_candidate=deployment_candidate,
+        accuracy_ceiling=accuracy_ceiling,
         r2_floor=r2_floor,
         best_r2=best_r2,
         latency_cap=latency_cap,
@@ -399,6 +619,9 @@ def main() -> int:
         target_source=args.target_source,
         data_source=args.data_source,
         monotonic_rates=monotonic_rates,
+        recommended_bootstrap_ci=recommended_bootstrap_ci,
+        worst_corner_bias=worst_corner_bias,
+        ood_summary=ood_summary,
     )
 
     print(f"[ok] wrote pareto csv: {args.pareto_csv}")

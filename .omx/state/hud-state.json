@@ -1,0 +1,6 @@
+{
+  "last_turn_at": "2026-04-13T14:40:43.956Z",
+  "turn_count": 9,
+  "last_progress_at": "2026-04-13T14:40:43.956Z",
+  "last_agent_output": "지금 상태는 이렇게 보면 됩니다.\n\n**현재 상태**\nOps Plan v1은 로컬 기준으로 끝까지 돌렸고, 최종 검증까지 `pass`입니다. 전체 실행 요약은 [ops_plan_v"
+}

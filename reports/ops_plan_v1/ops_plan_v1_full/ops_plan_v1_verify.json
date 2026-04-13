@@ -1,0 +1,54 @@
+{
+  "checks": [
+    {
+      "name": "gate_b_runnable_subset",
+      "ok": true,
+      "detail": "4/4 pass"
+    },
+    {
+      "name": "raw_metric_contract_mapping",
+      "ok": true,
+      "detail": "expected primary source suggestions present"
+    },
+    {
+      "name": "model_selection_baselines",
+      "ok": true,
+      "detail": "4 baseline reports verified"
+    },
+    {
+      "name": "model_selection_ablations",
+      "ok": true,
+      "detail": "48 reports"
+    },
+    {
+      "name": "gpu_benchmark",
+      "ok": true,
+      "detail": "9 benchmark rows verified"
+    },
+    {
+      "name": "parallel_benchmark",
+      "ok": true,
+      "detail": "worker ladder and zero failure rate verified"
+    },
+    {
+      "name": "node_scaling",
+      "ok": true,
+      "detail": "agreement sections present"
+    },
+    {
+      "name": "env_preflight",
+      "ok": true,
+      "detail": "all preflight checks passed"
+    },
+    {
+      "name": "research_evidence_pack",
+      "ok": true,
+      "detail": "summary highlights verified"
+    },
+    {
+      "name": "docs_pointer",
+      "ok": true,
+      "detail": "latest docs pointer verified"
+    }
+  ]
+}

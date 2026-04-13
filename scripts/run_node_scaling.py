@@ -248,25 +248,37 @@ def _node_nm(node_name: str) -> int:
     return int(digits) if digits else 0
 
 
-def summarize_by_node(rows: list[dict[str, object]]) -> list[dict[str, object]]:
+def summarize_by_node(
+    rows: list[dict[str, object]],
+    *,
+    prefix: str = "",
+) -> list[dict[str, object]]:
     grouped: dict[str, list[dict[str, object]]] = {}
     for row in rows:
         grouped.setdefault(str(row["node"]), []).append(row)
 
     summary: list[dict[str, object]] = []
     for node, items in grouped.items():
+        snm_key = f"{prefix}snm_mv"
+        ber_key = f"{prefix}ber"
+        noise_key = f"{prefix}noise"
+        latency_key = f"{prefix}tail_latency_ms"
+        energy_key = f"{prefix}energy_per_token_uj"
+        tok_key = f"{prefix}tokens_per_second"
+        acc_key = f"{prefix}accuracy_degradation_percent"
+        accept_key = f"{prefix}is_acceptable"
         summary.append(
             {
                 "node": node,
                 "points": len(items),
-                "mean_snm_mv": fmean(float(i["snm_mv"]) for i in items),
-                "mean_ber": fmean(float(i["ber"]) for i in items),
-                "mean_noise": fmean(float(i["noise"]) for i in items),
-                "mean_tail_latency_ms": fmean(float(i["tail_latency_ms"]) for i in items),
-                "mean_energy_per_token_uj": fmean(float(i["energy_per_token_uj"]) for i in items),
-                "mean_tokens_per_sec": fmean(float(i["tokens_per_second"]) for i in items),
-                "mean_accuracy_deg_pct": fmean(float(i["accuracy_degradation_percent"]) for i in items),
-                "accept_rate": fmean(1.0 if str(i["is_acceptable"]).lower() == "true" else 0.0 for i in items),
+                "mean_snm_mv": fmean(float(i[snm_key]) for i in items),
+                "mean_ber": fmean(float(i[ber_key]) for i in items),
+                "mean_noise": fmean(float(i[noise_key]) for i in items),
+                "mean_tail_latency_ms": fmean(float(i[latency_key]) for i in items),
+                "mean_energy_per_token_uj": fmean(float(i[energy_key]) for i in items),
+                "mean_tokens_per_sec": fmean(float(i[tok_key]) for i in items),
+                "mean_accuracy_deg_pct": fmean(float(i[acc_key]) for i in items),
+                "accept_rate": fmean(1.0 if bool(i[accept_key]) else 0.0 for i in items),
             }
         )
 
@@ -274,14 +286,87 @@ def summarize_by_node(rows: list[dict[str, object]]) -> list[dict[str, object]]:
     return summary
 
 
+def compute_pairwise_ranking_agreement(
+    summary: list[dict[str, object]],
+    reference_summary: list[dict[str, object]],
+) -> float:
+    left_map = {str(row["node"]): row for row in summary}
+    right_map = {str(row["node"]): row for row in reference_summary}
+    common_nodes = [node for node in left_map if node in right_map]
+    if len(common_nodes) < 2:
+        return 1.0
+
+    matches = 0
+    total = 0
+    for idx, left_node in enumerate(common_nodes):
+        for right_node in common_nodes[idx + 1:]:
+            total += 1
+            left_rank = (
+                float(left_map[left_node]["accept_rate"]),
+                float(left_map[left_node]["mean_tokens_per_sec"]),
+                -float(left_map[left_node]["mean_energy_per_token_uj"]),
+            )
+            left_rank_other = (
+                float(left_map[right_node]["accept_rate"]),
+                float(left_map[right_node]["mean_tokens_per_sec"]),
+                -float(left_map[right_node]["mean_energy_per_token_uj"]),
+            )
+            right_rank = (
+                float(right_map[left_node]["accept_rate"]),
+                float(right_map[left_node]["mean_tokens_per_sec"]),
+                -float(right_map[left_node]["mean_energy_per_token_uj"]),
+            )
+            right_rank_other = (
+                float(right_map[right_node]["accept_rate"]),
+                float(right_map[right_node]["mean_tokens_per_sec"]),
+                -float(right_map[right_node]["mean_energy_per_token_uj"]),
+            )
+
+            left_cmp = 0
+            right_cmp = 0
+            if left_rank > left_rank_other:
+                left_cmp = 1
+            elif left_rank < left_rank_other:
+                left_cmp = -1
+            if right_rank > right_rank_other:
+                right_cmp = 1
+            elif right_rank < right_rank_other:
+                right_cmp = -1
+
+            if left_cmp == 0 and right_cmp == 0:
+                matches += 1
+                continue
+            if left_cmp == 0 or right_cmp == 0:
+                continue
+            if left_cmp == right_cmp:
+                matches += 1
+
+    return (matches / total) if total > 0 else 1.0
+
+
+def compute_verdict_agreement(rows: list[dict[str, object]]) -> float:
+    if not rows:
+        return 1.0
+    matches = sum(
+        1
+        for row in rows
+        if bool(row["is_acceptable"]) == bool(row["reference_is_acceptable"])
+    )
+    return matches / len(rows)
+
+
 def write_report(
     path: Path,
     rows: list[dict[str, object]],
     summary: list[dict[str, object]],
+    reference_summary: list[dict[str, object]],
+    ranking_agreement: float,
+    verdict_agreement: float,
     workload_name: str,
     backend: str,
     config_dir: Path,
     data_source: str,
+    reference_label: str,
 ) -> None:
     lines: list[str] = [
         "# Node Scaling Report (Phase 3)",
@@ -292,6 +377,7 @@ def write_report(
         f"- Native backend: `{backend}`",
         f"- Node config dir: `{config_dir.as_posix()}`",
         f"- Total sweep points: `{len(rows)}`",
+        f"- Reference track: `{reference_label}`",
         "",
         "## Node Summary",
         "",
@@ -305,6 +391,34 @@ def write_report(
             f"{row['node']} | {int(row['points'])} | {float(row['mean_snm_mv']):.3f} | {float(row['mean_ber']):.6e} "
             f"| {float(row['mean_tail_latency_ms']):.3f} | {float(row['mean_energy_per_token_uj']):.3f} "
             f"| {float(row['mean_tokens_per_sec']):.3f} | {100.0 * float(row['accept_rate']):.1f}% |"
+        )
+
+    if reference_summary:
+        lines.extend(
+            [
+                "",
+                "## Reference Summary",
+                "",
+                "| Node | Points | Mean SNM (mV) | Mean BER | Mean Latency (ms) | Mean Energy/token (uJ) | Mean Tok/s | Accept Rate |",
+                "|---|---:|---:|---:|---:|---:|---:|---:|",
+            ]
+        )
+        for row in reference_summary:
+            lines.append(
+                "| "
+                f"{row['node']} | {int(row['points'])} | {float(row['mean_snm_mv']):.3f} | {float(row['mean_ber']):.6e} "
+                f"| {float(row['mean_tail_latency_ms']):.3f} | {float(row['mean_energy_per_token_uj']):.3f} "
+                f"| {float(row['mean_tokens_per_sec']):.3f} | {100.0 * float(row['accept_rate']):.1f}% |"
+            )
+
+        lines.extend(
+            [
+                "",
+                "## Agreement",
+                "",
+                f"- Ranking agreement: `{100.0 * ranking_agreement:.1f}%`",
+                f"- Verdict agreement: `{100.0 * verdict_agreement:.1f}%`",
+            ]
         )
 
     if len(summary) >= 2:
@@ -331,6 +445,8 @@ def write_report(
                 f"  - BER: {ber_delta:.2f}%",
                 f"  - Tail latency: {lat_delta:.2f}%",
                 f"  - Energy/token: {en_delta:.2f}%",
+                f"- Ranking agreement vs `{reference_label}`: `{100.0 * ranking_agreement:.1f}%`",
+                f"- Verdict agreement vs `{reference_label}`: `{100.0 * verdict_agreement:.1f}%`",
                 "",
                 "## Notes",
                 "",
@@ -396,6 +512,7 @@ def main() -> int:
         default="llama_7b_online",
         choices=["llama_7b_online", "llama_7b_batch", "llama_13b_online", "llama_70b_mqa"],
     )
+    parser.add_argument("--reference-label", default="native-derived reference")
     parser.add_argument("--out-csv", type=Path, default=REPO_ROOT / "reports" / "node_tradeoff.csv")
     parser.add_argument("--out-report", type=Path, default=REPO_ROOT / "reports" / "node_scaling_report.md")
     args = parser.parse_args()
@@ -449,6 +566,15 @@ def main() -> int:
                         temp_c=float(temp_k) - 273.15,
                     )
                     system = kpi["system_kpis"]
+                    nominal_vdd = max(float(profile["nominal_vdd"]), 1e-9)
+                    reference_leakage_mw = float(profile["leakage_mw_nominal"]) * (float(vdd) / nominal_vdd) ** 2
+                    reference_kpi = translator.translate_to_system_kpis(
+                        snm_mv=float(raw["snm_mv_raw"]),
+                        vmin_v=float(vdd),
+                        leakage_mw=float(reference_leakage_mw),
+                        temp_c=float(temp_k) - 273.15,
+                    )
+                    reference_system = reference_kpi["system_kpis"]
 
                     case_id = f"{profile['node']}_{corner}_t{int(round(temp_k))}_v{vdd:.2f}".replace(".", "p")
                     rows.append(
@@ -467,6 +593,15 @@ def main() -> int:
                             "tokens_per_second": float(system["tokens_per_second"]),
                             "accuracy_degradation_percent": float(system["accuracy_degradation_percent"]),
                             "is_acceptable": bool(kpi["is_acceptable"]),
+                            "reference_snm_mv": float(raw["snm_mv_raw"]),
+                            "reference_noise": float(raw["noise_raw"]),
+                            "reference_ber": float(raw["ber_raw"]),
+                            "reference_leakage_mw": float(reference_leakage_mw),
+                            "reference_tail_latency_ms": float(reference_system["tail_latency_ms"]),
+                            "reference_energy_per_token_uj": float(reference_system["energy_per_token_uj"]),
+                            "reference_tokens_per_second": float(reference_system["tokens_per_second"]),
+                            "reference_accuracy_degradation_percent": float(reference_system["accuracy_degradation_percent"]),
+                            "reference_is_acceptable": bool(reference_kpi["is_acceptable"]),
                             "native_backend_label": raw["backend_label"],
                             "native_engine": raw["native_engine"],
                             "config_source": profile["source"],
@@ -477,14 +612,21 @@ def main() -> int:
 
     write_csv(args.out_csv, rows)
     summary = summarize_by_node(rows)
+    reference_summary = summarize_by_node(rows, prefix="reference_")
+    ranking_agreement = compute_pairwise_ranking_agreement(summary, reference_summary)
+    verdict_agreement = compute_verdict_agreement(rows)
     write_report(
         path=args.out_report,
         rows=rows,
         summary=summary,
+        reference_summary=reference_summary,
+        ranking_agreement=ranking_agreement,
+        verdict_agreement=verdict_agreement,
         workload_name=args.workload,
         backend=args.backend,
         config_dir=args.config_dir,
         data_source=args.data_source,
+        reference_label=str(args.reference_label),
     )
 
     print(f"[ok] wrote csv: {args.out_csv}")

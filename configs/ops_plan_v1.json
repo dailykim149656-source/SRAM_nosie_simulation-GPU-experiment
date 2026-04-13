@@ -1,0 +1,142 @@
+{
+  "plan_id": "ops_plan_v1",
+  "stabilized_tag": "n27_xyce_contractfix_20260309",
+  "claim_boundary": "pre-signoff acceleration",
+  "runnable_pdk_subset": [
+    "sky130",
+    "gf180mcu",
+    "freepdk45_openram",
+    "asap7"
+  ],
+  "pdk_run_configs": {
+    "sky130": "spice_validation/configs/pdk_runs/sky130.json",
+    "gf180mcu": "spice_validation/configs/pdk_runs/gf180mcu.json",
+    "freepdk45_openram": "spice_validation/configs/pdk_runs/freepdk45_openram.json",
+    "asap7": "spice_validation/configs/pdk_runs_external/asap7.json"
+  },
+  "blocked_pdk_subset": [
+    "ihp_sg13g2"
+  ],
+  "contract_metric_sources": {
+    "sky130": {
+      "snm_mv": "spice_read_snm_mv_raw",
+      "hold_snm_mv": "spice_read_snm_mv_raw"
+    },
+    "gf180mcu": {
+      "snm_mv": "spice_snm_mv_raw",
+      "hold_snm_mv": "spice_snm_mv_raw"
+    },
+    "freepdk45_openram": {
+      "snm_mv": "spice_read_snm_mv_raw",
+      "hold_snm_mv": "spice_read_snm_mv_raw"
+    },
+    "asap7": {
+      "snm_mv": "spice_snm_mv_raw",
+      "hold_snm_mv": "spice_snm_mv_raw"
+    }
+  },
+  "gate_b_thresholds": {
+    "snm_mae_mv_max": 10.0,
+    "noise_sigma_mae_max": 0.02,
+    "log10_ber_mae_max": 0.35,
+    "max_abs_ber_delta_max": 0.05,
+    "latency_gain_min": 50.0
+  },
+  "seeds": {
+    "spice_seed": 20260218,
+    "native_seed": 20260218,
+    "model_selection_random_state": 42,
+    "node_scaling_seed": 20260219,
+    "gpu_benchmark_seed": 20260310
+  },
+  "model_selection": {
+    "baseline": {
+      "target_source": "spice_v2",
+      "risk_weighting": true,
+      "split_mode": "group_pvt",
+      "target_prob_logit": true,
+      "target_normalize": true,
+      "fail_aux_split": false,
+      "fail_aux_profile": "auto",
+      "n_folds": 5
+    },
+    "ablation_pdks": [
+      "sky130",
+      "gf180mcu"
+    ],
+    "spotcheck_pdks": [
+      "freepdk45_openram",
+      "asap7"
+    ],
+    "ablation_grid": {
+      "split_mode": [
+        "random",
+        "group_pvt"
+      ],
+      "risk_weighting": [
+        true,
+        false
+      ],
+      "target_source": [
+        "spice_v2",
+        "native_v2",
+        "delta_v2"
+      ],
+      "target_prob_logit": [
+        true,
+        false
+      ]
+    }
+  },
+  "gpu_benchmark": {
+    "problem_kind": "analytical_dataset",
+    "latency_mode": "batch",
+    "batch_shapes": [
+      {
+        "n_samples": 10000,
+        "variability_samples": 512
+      },
+      {
+        "n_samples": 5000,
+        "variability_samples": 1024
+      },
+      {
+        "n_samples": 20000,
+        "variability_samples": 512
+      }
+    ]
+  },
+  "parallel_benchmark": {
+    "pdk_ids": [
+      "gf180mcu",
+      "freepdk45_openram"
+    ],
+    "worker_ladder": [
+      1,
+      2,
+      4,
+      8
+    ],
+    "repeats": 2,
+    "timeout_sec": 1800
+  },
+  "node_scaling": {
+    "workload": "llama_7b_online",
+    "corners": [
+      "tt",
+      "ff",
+      "ss"
+    ],
+    "temps_k": [
+      300.0,
+      330.0,
+      360.0
+    ],
+    "vdds": "auto",
+    "nodes": [
+      "22nm",
+      "14nm",
+      "7nm"
+    ]
+  }
+}
