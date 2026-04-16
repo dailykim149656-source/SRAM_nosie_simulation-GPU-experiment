@@ -15,10 +15,10 @@ import os
 CPU_ONLY_KINDS = set()
 
 BASE_WORK_THRESHOLDS = {
-    "simulate": 8_000_000,
-    "analytical_dataset": 4_000_000,
-    "lifetime": 200_000,
-    "optimize": 50_000,
+    "simulate": 100_000,        # ~1000 cells x 100 MC runs
+    "analytical_dataset": 500_000,  # ~1000 samples x 512 variability
+    "lifetime": 16_000,         # ~32 cells x 500 margin
+    "optimize": 1_000,          # ~10 x 10 x 10 design points
 }
 
 INTERACTIVE_THRESHOLD_MULTIPLIER = 2

@@ -12,82 +12,18 @@ import numpy as np
 from typing import Tuple, List, Dict, Optional
 import json
 
-from perceptron_calibration import load_and_apply_perceptron_calibration
+from perceptron_calibration import PerceptronNoiseBase
 
 # ============================================================================
 # Part 1: MLP Perceptron for Noise Modeling (from main_advanced.py)
 # ============================================================================
 
-class PerceptronNoiseModel:
+class PerceptronNoiseModel(PerceptronNoiseBase):
     """
-    2-layer MLP for sophisticated noise weight prediction
-    Based on PerceptronGateFunction from main_advanced.py
-
-    Input: Temperature, Voltage
-    Output: Noise weight (0~1)
+    2-layer MLP for sophisticated noise weight prediction.
+    Inherits forward(), normalize_inputs(), and calibration loading
+    from PerceptronNoiseBase in perceptron_calibration.py.
     """
-
-    def __init__(
-        self,
-        input_dim: int = 2,
-        hidden_dim: int = 16,
-        use_calibration: bool = True,
-        calibration_path: Optional[str] = None,
-    ):
-        self.input_dim = input_dim
-        self.hidden_dim = hidden_dim
-
-        # Xavier initialization
-        self.W1 = np.random.randn(input_dim, hidden_dim) * np.sqrt(1.0 / input_dim)
-        self.b1 = np.zeros(hidden_dim)
-        self.W2 = np.random.randn(hidden_dim, 1) * np.sqrt(1.0 / hidden_dim)
-        self.b2 = np.zeros(1)
-
-        # Normalization parameters
-        self.temp_mean = 310  # K
-        self.temp_std = 30
-        self.volt_mean = 1.0  # V
-        self.volt_std = 0.15
-        self.calibration_loaded = False
-
-        if use_calibration:
-            self.calibration_loaded = load_and_apply_perceptron_calibration(
-                self,
-                path=calibration_path,
-            )
-
-    def relu(self, x: np.ndarray) -> np.ndarray:
-        """ReLU activation"""
-        return np.maximum(0, x)
-
-    def sigmoid(self, x: np.ndarray) -> np.ndarray:
-        """Sigmoid activation"""
-        return 1 / (1 + np.exp(-np.clip(x, -500, 500)))
-
-    def normalize_inputs(self, temperature: float, voltage: float) -> np.ndarray:
-        """Normalize inputs"""
-        norm_temp = (temperature - self.temp_mean) / self.temp_std
-        norm_volt = (voltage - self.volt_mean) / self.volt_std
-        return np.array([norm_temp, norm_volt])
-
-    def forward(self, temperature: float, voltage: float) -> float:
-        """
-        Forward pass: Temperature, Voltage -> Noise weight
-
-        Returns:
-            Noise weight in [0, 1] range
-        """
-        x = self.normalize_inputs(temperature, voltage)
-
-        # Hidden layer
-        z1 = np.dot(x, self.W1) + self.b1
-        a1 = self.relu(z1)
-
-        # Output layer
-        z2 = np.dot(a1, self.W2) + self.b2
-        output = self.sigmoid(z2)
-
-        return float(output[0])
 
 
 # ============================================================================

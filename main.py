@@ -2,95 +2,14 @@ import numpy as np
 import json
 from typing import Tuple, Dict, List, Optional
 
-from perceptron_calibration import load_and_apply_perceptron_calibration
+from perceptron_calibration import load_and_apply_perceptron_calibration, PerceptronNoiseBase
 
-class PerceptronGateFunction:
+
+class PerceptronGateFunction(PerceptronNoiseBase):
     """
     퍼셉트론 기반의 Gate 함수로 노이즈 가중치를 계산하는 클래스
     온도와 전압 조건에 따라 비선형 노이즈를 생성
     """
-
-    def __init__(
-        self,
-        input_dim: int = 2,
-        hidden_dim: int = 16,
-        use_calibration: bool = True,
-        calibration_path: Optional[str] = None,
-    ):
-        """
-        Args:
-            input_dim: 입력 차원 (온도, 전압)
-            hidden_dim: 은닉층 뉴런 개수
-        """
-        self.input_dim = input_dim
-        self.hidden_dim = hidden_dim
-
-        # 가중치 초기화 (Xavier initialization)
-        self.W1 = np.random.randn(input_dim, hidden_dim) * np.sqrt(1.0 / input_dim)
-        self.b1 = np.zeros(hidden_dim)
-
-        self.W2 = np.random.randn(hidden_dim, 1) * np.sqrt(1.0 / hidden_dim)
-        self.b2 = np.zeros(1)
-
-        # 정규화 파라미터
-        self.temp_mean = 310  # 중심 온도 (K)
-        self.temp_std = 30
-        self.volt_mean = 1.0  # 중심 전압 (V)
-        self.volt_std = 0.15
-        self.calibration_loaded = False
-
-        if use_calibration:
-            self.calibration_loaded = load_and_apply_perceptron_calibration(
-                self,
-                path=calibration_path,
-            )
-
-    def relu(self, x: np.ndarray) -> np.ndarray:
-        """ReLU 활성화 함수"""
-        return np.maximum(0, x)
-
-    def sigmoid(self, x: np.ndarray) -> np.ndarray:
-        """시그모이드 활성화 함수"""
-        return 1 / (1 + np.exp(-np.clip(x, -500, 500)))
-
-    def normalize_inputs(self, temperature: float, voltage: float) -> np.ndarray:
-        """
-        입력 정규화 (평균 0, 표준편차 1)
-
-        Args:
-            temperature: 온도 (K)
-            voltage: 전압 (V)
-
-        Returns:
-            정규화된 입력 배열
-        """
-        norm_temp = (temperature - self.temp_mean) / self.temp_std
-        norm_volt = (voltage - self.volt_mean) / self.volt_std
-        return np.array([norm_temp, norm_volt])
-
-    def forward(self, temperature: float, voltage: float) -> float:
-        """
-        순전파: 온도와 전압으로부터 노이즈 가중치 계산
-
-        Args:
-            temperature: 온도 (K)
-            voltage: 전압 (V)
-
-        Returns:
-            정규화된 노이즈 가중치 (0~1)
-        """
-        # 입력 정규화
-        x = self.normalize_inputs(temperature, voltage)
-
-        # 은닉층
-        z1 = np.dot(x, self.W1) + self.b1
-        a1 = self.relu(z1)
-
-        # 출력층
-        z2 = np.dot(a1, self.W2) + self.b2
-        output = self.sigmoid(z2)
-
-        return float(output[0])
 
 
 class SRAMCell:
@@ -197,8 +116,8 @@ class SRAMCell:
         write_margin = voltage / self.Vdd
         write_noise = self.generate_noise(temperature, voltage, bit_value)
 
-        # 쓰기 성공 확률
-        success_prob = write_margin * (1 - write_noise)
+        # 쓰기 성공 확률 (write_noise > 1 시 음수 방지)
+        success_prob = max(0.0, write_margin * (1 - write_noise))
 
         if np.random.random() < success_prob:
             self.stored_bit = bit_value
@@ -264,7 +183,8 @@ class SRAMArray:
             if (output > 0.5 and input_data[i] == 0) or (output <= 0.5 and input_data[i] == 1):
                 results['bit_errors'] += 1
 
-        results['bit_error_rate'] = results['bit_errors'] / self.num_cells if self.num_cells > 0 else 0
+        processed = min(len(input_data), self.num_cells)
+        results['bit_error_rate'] = results['bit_errors'] / processed if processed > 0 else 0
 
         return results
 

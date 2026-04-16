@@ -121,3 +121,45 @@ def load_and_apply_perceptron_calibration(model: Any, path: Optional[str] = None
         return False
     return apply_perceptron_calibration(model=model, calibration=calibration)
 
+
+class PerceptronNoiseBase:
+    """공통 2층 MLP 노이즈 모델. PerceptronGateFunction과 PerceptronNoiseModel이 공유."""
+
+    def __init__(
+        self,
+        input_dim: int = 2,
+        hidden_dim: int = 16,
+        use_calibration: bool = True,
+        calibration_path: Optional[str] = None,
+    ) -> None:
+        self.input_dim = input_dim
+        self.hidden_dim = hidden_dim
+
+        self.W1 = np.random.randn(input_dim, hidden_dim) * np.sqrt(1.0 / input_dim)
+        self.b1 = np.zeros(hidden_dim)
+        self.W2 = np.random.randn(hidden_dim, 1) * np.sqrt(1.0 / hidden_dim)
+        self.b2 = np.zeros(1)
+
+        self.temp_mean = 310.0
+        self.temp_std = 30.0
+        self.volt_mean = 1.0
+        self.volt_std = 0.15
+        self.calibration_loaded = False
+
+        if use_calibration:
+            self.calibration_loaded = load_and_apply_perceptron_calibration(
+                self, path=calibration_path
+            )
+
+    def normalize_inputs(self, temperature: float, voltage: float) -> np.ndarray:
+        norm_temp = (temperature - self.temp_mean) / self.temp_std
+        norm_volt = (voltage - self.volt_mean) / self.volt_std
+        return np.array([norm_temp, norm_volt])
+
+    def forward(self, temperature: float, voltage: float) -> float:
+        x = self.normalize_inputs(temperature, voltage)
+        z1 = np.dot(x, self.W1) + self.b1
+        a1 = np.maximum(0, z1)
+        z2 = np.dot(a1, self.W2) + self.b2
+        return float(1.0 / (1.0 + np.exp(-np.clip(z2, -500, 500)))[0])
+

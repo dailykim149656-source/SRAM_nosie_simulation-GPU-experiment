@@ -47,8 +47,8 @@ class ReliabilityModel:
         # 게이트 오버드라이브
         vgo = vgs - vth
 
-        # 온도 의존성: exp(Ea / kT)
-        temp_factor = np.exp(self.Ea_nbti / (self.k_B * temperature / self.q_e))
+        # 온도 의존성: exp(-Ea / kT) — 온도가 높을수록 NBTI 가속
+        temp_factor = np.exp(-self.Ea_nbti / (self.k_B * temperature / self.q_e))
 
         # 시간 의존성: t^n
         if stress_time <= 0:
