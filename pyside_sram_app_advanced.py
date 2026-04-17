@@ -113,6 +113,14 @@ except ImportError:
     EXECUTION_POLICY_AVAILABLE = False
     select_compute_engine = None
 
+from lifetime_service import (
+    DEFAULT_DUTY_CYCLE,
+    DEFAULT_FAILURE_RATE,
+    build_lifetime_result_text,
+    predict_lifetime_native_first,
+    summarize_lifetime_runtime,
+)
+
 # PDF Generation (optional)
 try:
     from reportlab.lib.pagesizes import letter, A4
@@ -805,7 +813,6 @@ class AdvancedSimulationThread(QThread):
 
             compute_mode = getattr(self, "compute_mode", "cpu")
             latency_mode = getattr(self, "latency_mode", "interactive")
-
             self.progress_update.emit(10)
             self.status_update.emit("Initializing native backend...")
 
@@ -1085,7 +1092,7 @@ class SRAMSimulatorWindow(QMainWindow):
         self.custom_pattern = "10101010"
         self.analysis_mode = "Basic Noise"
         self.backend_type = "standard"  # "standard" or "hybrid"
-        self.compute_mode_preference = "auto"
+        self.compute_mode_preference = "gpu"
         self.analysis_view_mode = "core"
 
         # Research data model
@@ -1546,10 +1553,14 @@ class SRAMSimulatorWindow(QMainWindow):
 
         self.compute_mode_combo = QComboBox()
         self.compute_mode_combo.addItems(["Auto", "CPU", "GPU"])
-        self.compute_mode_combo.setCurrentText("Auto")
+        self.compute_mode_combo.setCurrentText("GPU")
         self.compute_mode_combo.currentTextChanged.connect(self.on_compute_mode_changed)
 
-        compute_info = QLabel("Auto: policy-based\nCPU: force CPU\nGPU: force GPU (falls back if unavailable)")
+        compute_info = QLabel(
+            "Auto: policy-based\n"
+            "CPU: prefer CPU execution\n"
+            "GPU: request GPU first (may still fall back to CPU if the GPU lane/runtime is unavailable)"
+        )
         compute_info.setWordWrap(True)
         compute_info.setProperty("ui-typography", "caption")
 
@@ -2460,6 +2471,26 @@ class SRAMSimulatorWindow(QMainWindow):
         num_cells_rel_layout.addWidget(self.rel_num_cells)
         input_layout.addLayout(num_cells_rel_layout)
 
+        duty_cycle_layout = QVBoxLayout()
+        duty_cycle_layout.addWidget(QLabel("Duty Cycle:"))
+        self.rel_duty_cycle = QDoubleSpinBox()
+        self.rel_duty_cycle.setRange(0.05, 1.0)
+        self.rel_duty_cycle.setValue(DEFAULT_DUTY_CYCLE)
+        self.rel_duty_cycle.setSingleStep(0.05)
+        self.rel_duty_cycle.setDecimals(2)
+        duty_cycle_layout.addWidget(self.rel_duty_cycle)
+        input_layout.addLayout(duty_cycle_layout)
+
+        failure_rate_layout = QVBoxLayout()
+        failure_rate_layout.addWidget(QLabel("Failure Rate:"))
+        self.rel_failure_rate = QDoubleSpinBox()
+        self.rel_failure_rate.setRange(0.001, 0.200)
+        self.rel_failure_rate.setValue(DEFAULT_FAILURE_RATE)
+        self.rel_failure_rate.setSingleStep(0.001)
+        self.rel_failure_rate.setDecimals(3)
+        failure_rate_layout.addWidget(self.rel_failure_rate)
+        input_layout.addLayout(failure_rate_layout)
+
         input_group.setLayout(input_layout)
         layout.addWidget(input_group)
 
@@ -2751,7 +2782,7 @@ class SRAMSimulatorWindow(QMainWindow):
         request = {
             "num_cells": int(self.num_cells),
             "monte_carlo_runs": int(self.monte_carlo_runs),
-            "compute_mode": "auto",
+            "compute_mode": self.compute_mode_preference,
             "latency_mode": "interactive",
         }
 
@@ -2772,6 +2803,25 @@ class SRAMSimulatorWindow(QMainWindow):
 
         if NATIVE_BACKEND_AVAILABLE:
             try:
+                native_gpu_symbols = []
+                try:
+                    native_mod = __import__("_sram_native")
+                    for symbol in ("simulate_array_gpu", "predict_lifetime_gpu", "optimize_design_gpu"):
+                        if hasattr(native_mod, symbol):
+                            native_gpu_symbols.append(symbol)
+                except Exception as exc:
+                    lines.append(f"- Native module import for GPU symbol check failed: {exc}")
+                if native_gpu_symbols:
+                    lines.append(f"- Native GPU entrypoints present: {', '.join(native_gpu_symbols)}")
+                else:
+                    lines.append("- Native GPU entrypoints present: none")
+                    try:
+                        import torch
+                        torch_cuda_backend = bool(torch.cuda.is_available())
+                    except Exception:
+                        torch_cuda_backend = False
+                    lines.append(f"- Torch CUDA backend available to wrapper: {torch_cuda_backend}")
+
                 probe_input = np.random.randint(0, 2, max(8, min(64, int(self.num_cells)))).tolist()
                 probe_result = native_simulate_array({
                     "backend": "hybrid" if self.backend_type == "hybrid" else "standard",
@@ -2786,7 +2836,7 @@ class SRAMSimulatorWindow(QMainWindow):
                     "length": float(self.length),
                     "include_thermal_noise": False,
                     "analysis_type": "basic",
-                    "compute_mode": "auto",
+                    "compute_mode": self.compute_mode_preference,
                     "latency_mode": "interactive",
                     "require_native": True,
                     "prefer_hybrid_gate_logic": False,
@@ -2820,8 +2870,8 @@ class SRAMSimulatorWindow(QMainWindow):
         """Choose compute/latency mode for heavy native simulation jobs.
 
         Policy:
-        - GPU selected: use compute_mode=auto + latency_mode=batch
-        - Otherwise: force CPU + latency_mode=interactive
+        - Preserve explicit CPU/GPU user intent in the native request
+        - In auto mode, keep policy-based CPU/GPU selection
         """
         requested_compute_mode = str(compute_mode or self.compute_mode_preference).strip().lower()
         if requested_compute_mode not in {"auto", "cpu", "gpu"}:
@@ -2831,6 +2881,7 @@ class SRAMSimulatorWindow(QMainWindow):
         dispatch = {
             "compute_mode": requested_compute_mode,
             "latency_mode": "interactive",
+            "requested_compute_mode": requested_compute_mode,
             "selected": "cpu",
             "reason": "policy_unavailable",
             "gpu_available": False,
@@ -2859,7 +2910,13 @@ class SRAMSimulatorWindow(QMainWindow):
             }
         )
 
-        if selected == "gpu" and gpu_available:
+        if requested_compute_mode == "gpu":
+            dispatch["compute_mode"] = "gpu"
+            dispatch["latency_mode"] = "batch"
+        elif requested_compute_mode == "cpu":
+            dispatch["compute_mode"] = "cpu"
+            dispatch["latency_mode"] = "interactive"
+        elif selected == "gpu" and gpu_available:
             dispatch["compute_mode"] = "auto"
             dispatch["latency_mode"] = "batch"
         else:
@@ -2881,6 +2938,7 @@ class SRAMSimulatorWindow(QMainWindow):
         dispatch = {
             "compute_mode": requested_compute_mode,
             "latency_mode": request_payload.get("latency_mode", "batch"),
+            "requested_compute_mode": requested_compute_mode,
             "selected": "cpu",
             "reason": "policy_unavailable",
             "gpu_available": False,
@@ -2903,7 +2961,13 @@ class SRAMSimulatorWindow(QMainWindow):
             }
         )
 
-        if selected == "gpu" and gpu_available:
+        if requested_compute_mode == "gpu":
+            dispatch["compute_mode"] = "gpu"
+            dispatch["latency_mode"] = request_payload.get("latency_mode", "batch")
+        elif requested_compute_mode == "cpu":
+            dispatch["compute_mode"] = "cpu"
+            dispatch["latency_mode"] = request_payload.get("latency_mode", "batch")
+        elif selected == "gpu" and gpu_available:
             dispatch["compute_mode"] = "auto"
             dispatch["latency_mode"] = request_payload.get("latency_mode", "batch")
         else:
@@ -3384,15 +3448,16 @@ class SRAMSimulatorWindow(QMainWindow):
 
         if self._last_dispatch_info is not None:
             selected = self._last_dispatch_info.get("selected", "-")
+            requested = self._last_dispatch_info.get("requested_compute_mode", self.compute_mode_preference)
             compute_mode = self._last_dispatch_info.get("compute_mode", self.compute_mode_preference)
             reason = str(self._last_dispatch_info.get("reason", ""))
             if reason:
                 self.quick_status_dispatch_label.setText(
-                    f"Dispatch: {selected} / {compute_mode} ({reason})"
+                    f"Dispatch: req={requested} -> mode={compute_mode}, policy={selected} ({reason})"
                 )
             else:
                 self.quick_status_dispatch_label.setText(
-                    f"Dispatch: {selected} / {compute_mode}"
+                    f"Dispatch: req={requested} -> mode={compute_mode}, policy={selected}"
                 )
         else:
             self.quick_status_dispatch_label.setText("Dispatch: -")
@@ -3726,6 +3791,17 @@ SNM (mean): {snm_mean:.2f} mV
 
         self.current_result = result
         self._refresh_quick_status_panel()
+
+        exec_meta = result.get("_exec", {}) if isinstance(result, dict) else {}
+        runtime_engine = result.get("runtime_engine", exec_meta.get("selected", "unknown")) if isinstance(result, dict) else "unknown"
+        requested_mode = (
+            self._last_dispatch_info.get("requested_compute_mode", self.compute_mode_preference)
+            if isinstance(self._last_dispatch_info, dict) else self.compute_mode_preference
+        )
+        if requested_mode == "gpu" and runtime_engine != "gpu":
+            self.on_status_update(
+                f"Warning: GPU was requested, but runtime executed on {runtime_engine}."
+            )
 
         try:
             self.update_results_table(result)
@@ -5935,10 +6011,6 @@ Try setting Min Tapout Success to 0% for exploration.
 
     def analyze_reliability(self):
         """Analyze NBTI/HCI reliability and lifetime prediction"""
-        if not NATIVE_BACKEND_AVAILABLE:
-            self.show_warning("Not Available", "Native backend wrapper not available.")
-            return
-
         try:
             # Get parameters
             temperature = self.rel_temp.value()
@@ -5946,12 +6018,16 @@ Try setting Min Tapout Success to 0% for exploration.
             vth = self.rel_vth.value()
             width = self.rel_width.value()
             num_cells = self.rel_num_cells.value()
+            duty_cycle = self.rel_duty_cycle.value()
+            failure_rate = self.rel_failure_rate.value()
 
             dispatch = self._resolve_compute_dispatch(
                 "lifetime",
                 {
                     "num_cells": max(1, int(num_cells)),
                     "width": float(width),
+                    "duty_cycle": float(duty_cycle),
+                    "failure_rate": float(failure_rate),
                     "compute_mode": self.compute_mode_preference,
                     "latency_mode": "batch",
                 },
@@ -5985,17 +6061,23 @@ Try setting Min Tapout Success to 0% for exploration.
                 total_shifts.append(total * 1000)
 
             # Predict lifetime (native backend required)
-            lifetime_result = native_predict_lifetime({
-                'temperature': float(temperature),
-                'vgs': float(vgs),
-                'vds': float(vgs),
-                'vth': float(vth),
-                'width': float(width),
-                'num_cells': int(num_cells),
-                'compute_mode': dispatch['compute_mode'],
-                'latency_mode': dispatch['latency_mode'],
-                'require_native': True,
-            })
+            lifetime_result = predict_lifetime_native_first(
+                temperature=float(temperature),
+                vgs=float(vgs),
+                vds=float(vgs),
+                vth=float(vth),
+                width=float(width),
+                num_cells=int(num_cells),
+                duty_cycle=float(duty_cycle),
+                failure_rate=float(failure_rate),
+                compute_mode=dispatch['compute_mode'],
+                latency_mode=dispatch['latency_mode'],
+            )
+            runtime_summary = summarize_lifetime_runtime(lifetime_result)
+            if lifetime_result.get('_exec', {}).get('fallback'):
+                self.on_status_update(
+                    f"Reliability fallback active: {lifetime_result.get('fallback_notice', runtime_summary)}"
+                )
 
             # Plot results
             fig = self.canvas_reliability_grove.figure
@@ -6021,7 +6103,14 @@ Try setting Min Tapout Success to 0% for exploration.
             lifetimes = lifetime_result['cell_lifetimes']
             ax2.hist(lifetimes, bins=20, color='purple', alpha=0.7, edgecolor='black')
             ax2.axvline(lifetime_result['mean_lifetime'], color='red', linestyle='--', linewidth=2, label=f"Mean: {lifetime_result['mean_lifetime']:.1f} yrs")
-            ax2.axvline(lifetime_result['t_90pct'], color='orange', linestyle='--', linewidth=2, label=f"90%: {lifetime_result['t_90pct']:.1f} yrs")
+            ax2.axvline(
+                lifetime_result['lifetime_at_failure_rate'],
+                color='green',
+                linestyle='-.',
+                linewidth=2,
+                label=f"Target: {lifetime_result['lifetime_at_failure_rate']:.1f} yrs",
+            )
+            ax2.axvline(lifetime_result['t_90pct'], color='orange', linestyle='--', linewidth=2, label=f"90% ref: {lifetime_result['t_90pct']:.1f} yrs")
             ax2.set_xlabel('Lifetime (years)', fontsize=12, fontweight='bold')
             ax2.set_ylabel('Count', fontsize=12, fontweight='bold')
             ax2.set_title('(b) Cell Lifetime Distribution', fontsize=13, fontweight='bold')
@@ -6030,25 +6119,26 @@ Try setting Min Tapout Success to 0% for exploration.
 
             # (c) Temperature sensitivity
             temps = [280, 310, 340, 360]
-            mean_lifetimes = []
+            target_lifetimes = []
             for temp_point in temps:
-                temp_result = native_predict_lifetime({
-                    'temperature': float(temp_point),
-                    'vgs': float(vgs),
-                    'vds': float(vgs),
-                    'vth': float(vth),
-                    'width': float(width),
-                    'num_cells': int(num_cells),
-                    'compute_mode': dispatch['compute_mode'],
-                    'latency_mode': dispatch['latency_mode'],
-                    'require_native': True,
-                })
-                mean_lifetimes.append(float(temp_result.get('mean_lifetime', 0.0)))
+                temp_result = predict_lifetime_native_first(
+                    temperature=float(temp_point),
+                    vgs=float(vgs),
+                    vds=float(vgs),
+                    vth=float(vth),
+                    width=float(width),
+                    num_cells=int(num_cells),
+                    duty_cycle=float(duty_cycle),
+                    failure_rate=float(failure_rate),
+                    compute_mode=dispatch['compute_mode'],
+                    latency_mode=dispatch['latency_mode'],
+                )
+                target_lifetimes.append(float(temp_result.get('lifetime_at_failure_rate', 0.0)))
 
             ax3 = fig.add_subplot(gs[1, 1])
-            ax3.plot(temps, mean_lifetimes, 'ro-', linewidth=2, markersize=8)
+            ax3.plot(temps, target_lifetimes, 'ro-', linewidth=2, markersize=8)
             ax3.set_xlabel('Temperature (K)', fontsize=12, fontweight='bold')
-            ax3.set_ylabel('Mean Lifetime (years)', fontsize=12, fontweight='bold')
+            ax3.set_ylabel('Target Lifetime (years)', fontsize=12, fontweight='bold')
             ax3.set_title('(c) Temperature Sensitivity', fontsize=13, fontweight='bold')
             ax3.grid(True, alpha=0.3)
 
@@ -6059,51 +6149,20 @@ Try setting Min Tapout Success to 0% for exploration.
             self.canvas_reliability_grove.draw_idle()
 
             # Format text results
-            results = f"""
-=== Reliability Analysis Results ===
-
-Operating Conditions:
----------------------
-Temperature:  {temperature} K
-Vgs:          {vgs} V
-Vth:          {vth} V
-Width:        {width} um
-Num Cells:    {num_cells}
-
-Lifetime Prediction:
---------------------
-Mean Lifetime:     {lifetime_result['mean_lifetime']:.2f} years
-Std Deviation:     {lifetime_result['std_lifetime']:.2f} years
-Min Lifetime:      {lifetime_result['min_lifetime']:.2f} years
-Max Lifetime:      {lifetime_result['max_lifetime']:.2f} years
-
-Reliability Metrics:
---------------------
-90% Survival Time: {lifetime_result['t_90pct']:.2f} years
-99% Survival Time: {lifetime_result['t_99pct']:.2f} years
-Failure Rate (FIT): {lifetime_result['failure_rate_fit']:.2f} per 10^9 hours
-
-Native Runtime:
----------------
-Engine:            {lifetime_result.get('_exec', {}).get('selected', 'unknown')}
-Fallback Used:     {lifetime_result.get('_exec', {}).get('fallback', 'unknown')}
-Dispatch Reason:   {lifetime_result.get('_exec', {}).get('reason', 'unknown')}
-
-NBTI Impact (at 10 years):
----------------------------
-Vth Shift:         {nbti_shifts[np.argmin(np.abs(stress_times - 10*365.25*24*3600))]:.2f} mV
-
-HCI Impact (at 10 years):
---------------------------
-Vth Shift:         {hci_shifts[np.argmin(np.abs(stress_times - 10*365.25*24*3600))]:.2f} mV (decrease)
-
-Net Impact (at 10 years):
---------------------------
-Total Vth Shift:   {total_shifts[np.argmin(np.abs(stress_times - 10*365.25*24*3600))]:.2f} mV
-
-Recommendation:
----------------
-"""
+            results = build_lifetime_result_text(
+                temperature=float(temperature),
+                vgs=float(vgs),
+                vth=float(vth),
+                width=float(width),
+                num_cells=int(num_cells),
+                duty_cycle=float(duty_cycle),
+                failure_rate=float(failure_rate),
+                lifetime_result=lifetime_result,
+                nbti_shift_10y_mv=float(nbti_shifts[np.argmin(np.abs(stress_times - 10 * 365.25 * 24 * 3600))]),
+                hci_shift_10y_mv=float(hci_shifts[np.argmin(np.abs(stress_times - 10 * 365.25 * 24 * 3600))]),
+                total_shift_10y_mv=float(total_shifts[np.argmin(np.abs(stress_times - 10 * 365.25 * 24 * 3600))]),
+            )
+            results += "\n\nRecommendation:\n---------------\n"
             if lifetime_result['mean_lifetime'] > 15:
                 results += "EXCELLENT: Lifetime exceeds 15 years - Good for consumer applications\n"
             elif lifetime_result['mean_lifetime'] > 10:
@@ -6273,6 +6332,8 @@ Simulation Results:
             'compute_mode_preference': self.compute_mode_preference,
             'backend_type': self.backend_type,
             'analysis_view_mode': self.analysis_view_mode,
+            'reliability_duty_cycle': self.rel_duty_cycle.value() if hasattr(self, 'rel_duty_cycle') else DEFAULT_DUTY_CYCLE,
+            'reliability_failure_rate': self.rel_failure_rate.value() if hasattr(self, 'rel_failure_rate') else DEFAULT_FAILURE_RATE,
         }
 
         file_path, _ = QFileDialog.getSaveFileName(
@@ -6318,7 +6379,7 @@ Simulation Results:
                         button.setChecked(True)
                         break
 
-                compute_mode = config.get("compute_mode_preference", "auto")
+                compute_mode = config.get("compute_mode_preference", "gpu")
                 compute_mode_index = self.compute_mode_combo.findText(compute_mode.capitalize())
                 if compute_mode_index < 0:
                     compute_mode_index = self.compute_mode_combo.findText("Auto")
@@ -6344,6 +6405,11 @@ Simulation Results:
 
                 if selected_index >= 0:
                     self.backend_combo.setCurrentIndex(selected_index)
+
+                if hasattr(self, "rel_duty_cycle"):
+                    self.rel_duty_cycle.setValue(float(config.get("reliability_duty_cycle", DEFAULT_DUTY_CYCLE)))
+                if hasattr(self, "rel_failure_rate"):
+                    self.rel_failure_rate.setValue(float(config.get("reliability_failure_rate", DEFAULT_FAILURE_RATE)))
 
                 analysis_view_mode = config.get("analysis_view_mode", "core")
                 if isinstance(analysis_view_mode, str):

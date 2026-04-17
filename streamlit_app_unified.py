@@ -3,7 +3,13 @@ import numpy as np
 import matplotlib.pyplot as plt
 from mpl_toolkits.mplot3d import Axes3D
 from main_advanced import AdvancedSRAMArray, PerceptronGateFunction, AdvancedSRAMCell
-from reliability_model import ReliabilityModel, ReliabilityAwareSRAMCell, LifetimePredictor
+from reliability_model import ReliabilityModel
+from lifetime_service import (
+    DEFAULT_DUTY_CYCLE,
+    DEFAULT_FAILURE_RATE,
+    predict_lifetime_native_first,
+    summarize_lifetime_runtime,
+)
 import matplotlib
 
 # ============================================================================
@@ -109,7 +115,6 @@ sram_array = AdvancedSRAMArray(num_cells=num_cells, width=width, length=length)
 
 # 신뢰성 모델 초기화
 reliability_model = ReliabilityModel()
-lifetime_predictor = LifetimePredictor(num_cells=num_cells, width=width)
 
 # ============================================================================
 # TAB 1: 기본 노이즈 시뮬레이션
@@ -464,6 +469,27 @@ elif sim_type == "🔄 Process Corner":
 elif sim_type == "🔥 신뢰성 분석 (NBTI/HCI)":
     st.header("🔥 NBTI/HCI 신뢰성 분석")
 
+    ctrl_col1, ctrl_col2 = st.columns(2)
+    with ctrl_col1:
+        duty_cycle = st.slider(
+            "Duty Cycle",
+            min_value=0.05,
+            max_value=1.0,
+            value=DEFAULT_DUTY_CYCLE,
+            step=0.05,
+        )
+    with ctrl_col2:
+        failure_rate = st.number_input(
+            "허용 Failure Rate",
+            min_value=0.001,
+            max_value=0.200,
+            value=DEFAULT_FAILURE_RATE,
+            step=0.001,
+            format="%.3f",
+        )
+
+    target_survival_percent = (1.0 - failure_rate) * 100.0
+
     reliability_analysis_type = st.selectbox("신뢰성 분석 종류", [
         "📈 장기 열화 예측",
         "⏱️ 수명 분석",
@@ -546,25 +572,41 @@ elif sim_type == "🔥 신뢰성 분석 (NBTI/HCI)":
         st.subheader("⏱️ 배열 단위 수명 분석")
 
         with st.spinner('수명 분석 중...'):
-            lifetime = LifetimePredictor(num_cells=num_cells, width=width)
-            array_pred = lifetime.predict_array_lifetime(temperature)
+            array_pred = predict_lifetime_native_first(
+                temperature=temperature,
+                width=width,
+                num_cells=num_cells,
+                duty_cycle=duty_cycle,
+                failure_rate=failure_rate,
+                vgs=voltage,
+                vds=voltage,
+                vth=0.4,
+                compute_mode="auto",
+                latency_mode="interactive",
+            )
+
+        st.caption(f"실행 소스: {summarize_lifetime_runtime(array_pred)}")
+        if array_pred.get("_exec", {}).get("fallback"):
+            st.info(f"Fallback 실행: {array_pred.get('fallback_notice', 'native 경로를 사용할 수 없어 Python으로 실행했습니다.')}")
 
         col1, col2 = st.columns(2)
 
         with col1:
             st.markdown("#### 기본 정보")
+            st.write(f"**목표 수명 ({target_survival_percent:.1f}% 생존)**: {array_pred['lifetime_at_failure_rate']:.2f}년")
             st.write(f"**평균 수명**: {array_pred['mean_lifetime']:.2f}년")
             st.write(f"**표준편차**: {array_pred['std_lifetime']:.2f}년")
             st.write(f"**최소 수명**: {array_pred['min_lifetime']:.2f}년")
             st.write(f"**최대 수명**: {array_pred['max_lifetime']:.2f}년")
-            st.write(f"**90% 신뢰도**: {array_pred['t_90pct']:.2f}년")
+            st.write(f"**90% 신뢰도 참조**: {array_pred['t_90pct']:.2f}년")
+            st.write(f"**99% 신뢰도 참조**: {array_pred['t_99pct']:.2f}년")
             st.write(f"**고장률**: {array_pred['failure_rate_fit']:.0f} FIT")
 
         with col2:
             st.markdown("#### 수명 해석")
-            if array_pred['mean_lifetime'] > 10:
+            if array_pred['lifetime_at_failure_rate'] > 10:
                 st.success("✅ 우수한 수명 (10년 이상)")
-            elif array_pred['mean_lifetime'] > 5:
+            elif array_pred['lifetime_at_failure_rate'] > 5:
                 st.info("ℹ️ 적절한 수명 (5-10년)")
             else:
                 st.warning("⚠️ 낮은 수명 (5년 이하)")
@@ -577,7 +619,14 @@ elif sim_type == "🔥 신뢰성 분석 (NBTI/HCI)":
             ax.hist(array_pred['cell_lifetimes'], bins=15, color='skyblue', 
                    edgecolor='black', alpha=0.7)
             ax.axvline(np.mean(array_pred['cell_lifetimes']), color='red', 
-                      linestyle='--', linewidth=2, label=f"평균: {np.mean(array_pred['cell_lifetimes']):.2f}년")
+                       linestyle='--', linewidth=2, label=f"평균: {np.mean(array_pred['cell_lifetimes']):.2f}년")
+            ax.axvline(
+                array_pred['lifetime_at_failure_rate'],
+                color='green',
+                linestyle='-.',
+                linewidth=2,
+                label=f"목표: {array_pred['lifetime_at_failure_rate']:.2f}년",
+            )
             ax.set_xlabel('수명 (년)')
             ax.set_ylabel('셀 개수')
             ax.set_title(f'{num_cells}개 셀의 수명 분포')
@@ -598,6 +647,19 @@ elif sim_type == "🔥 신뢰성 분석 (NBTI/HCI)":
             ax.plot(t_range, reliability_func * 100, 'b-', linewidth=2.5)
             ax.axhline(90, color='green', linestyle='--', alpha=0.7, label='90% 신뢰도')
             ax.axhline(99, color='orange', linestyle='--', alpha=0.7, label='99% 신뢰도')
+            ax.axhline(
+                target_survival_percent,
+                color='purple',
+                linestyle='-.',
+                alpha=0.8,
+                label=f'목표 생존율 {target_survival_percent:.1f}%',
+            )
+            ax.axvline(
+                array_pred['lifetime_at_failure_rate'],
+                color='purple',
+                linestyle='-.',
+                alpha=0.8,
+            )
             ax.fill_between(t_range, reliability_func * 100, alpha=0.2, color='blue')
             ax.set_xlabel('시간 (년)')
             ax.set_ylabel('신뢰도 (%)')
@@ -616,19 +678,46 @@ elif sim_type == "🔥 신뢰성 분석 (NBTI/HCI)":
         temps = [280, 300, 310, 330, 350, 360]
 
         with st.spinner('온도 분석 중...'):
-            predictor = LifetimePredictor(num_cells=num_cells, width=width)
-            temp_analysis = predictor.analyze_temperature_sensitivity(temps)
+            temp_results = [
+                predict_lifetime_native_first(
+                    temperature=temp_point,
+                    width=width,
+                    num_cells=num_cells,
+                    duty_cycle=duty_cycle,
+                    failure_rate=failure_rate,
+                    vgs=voltage,
+                    vds=voltage,
+                    vth=0.4,
+                    compute_mode="auto",
+                    latency_mode="interactive",
+                )
+                for temp_point in temps
+            ]
+            temp_analysis = {
+                'temperatures': temps,
+                'mean_lifetimes': [float(r['mean_lifetime']) for r in temp_results],
+                'target_lifetimes': [float(r['lifetime_at_failure_rate']) for r in temp_results],
+                't_90pct': [float(r['t_90pct']) for r in temp_results],
+                't_99pct': [float(r['t_99pct']) for r in temp_results],
+                'failure_rate': [float(r['failure_rate_fit']) for r in temp_results],
+                'runtime_summary': [summarize_lifetime_runtime(r) for r in temp_results],
+                'fallback_used': any(bool(r.get('_exec', {}).get('fallback')) for r in temp_results),
+            }
+
+        st.caption(f"실행 소스 예시: {temp_analysis['runtime_summary'][0]}")
+        if temp_analysis['fallback_used']:
+            st.info("온도 민감도 분석 중 일부 또는 전체 포인트가 Python fallback으로 실행되었습니다.")
 
         col1, col2 = st.columns(2)
 
         with col1:
             fig, ax = plt.subplots(figsize=(10, 6))
-            ax.plot(temps, temp_analysis['mean_lifetimes'], 'b-o', linewidth=2.5, markersize=8)
-            ax.fill_between(temps, temp_analysis['t_99pct'], alpha=0.2, color='blue', label='99% 신뢰도')
+            ax.plot(temps, temp_analysis['target_lifetimes'], 'b-o', linewidth=2.5, markersize=8, label='목표 수명')
+            ax.fill_between(temps, temp_analysis['t_99pct'], alpha=0.2, color='blue', label='99% 신뢰도 참조')
             ax.axhline(10, color='green', linestyle='--', linewidth=2, label='10년 목표')
             ax.set_xlabel('온도 (K)')
             ax.set_ylabel('수명 (년)')
-            ax.set_title('온도에 따른 수명')
+            ax.set_title(f'온도에 따른 목표 수명 ({target_survival_percent:.1f}% 생존)')
             ax.legend()
             ax.grid(alpha=0.3)
 
@@ -651,13 +740,15 @@ elif sim_type == "🔥 신뢰성 분석 (NBTI/HCI)":
         # 테이블
         st.markdown("#### 온도별 신뢰성")
         table_data = []
-        for t, lifetime, t90, fr in zip(temps, temp_analysis['mean_lifetimes'],
+        for t, lifetime, mean_lifetime, t90, fr in zip(temps, temp_analysis['target_lifetimes'],
+                                        temp_analysis['mean_lifetimes'],
                                         temp_analysis['t_90pct'],
                                         temp_analysis['failure_rate']):
             table_data.append({
                 '온도 (K)': t,
                 '온도 (°C)': f"{t - 273.15:.0f}",
-                '평균 수명 (년)': f"{lifetime:.2f}",
+                '목표 수명 (년)': f"{lifetime:.2f}",
+                '평균 수명 (년)': f"{mean_lifetime:.2f}",
                 '90% 수명 (년)': f"{t90:.2f}",
                 '고장률 (FIT)': f"{fr:.0f}"
             })
@@ -670,31 +761,51 @@ elif sim_type == "🔥 신뢰성 분석 (NBTI/HCI)":
         width_range = np.linspace(0.5, 3.0, 20)
 
         with st.spinner('공정 최적화 중...'):
+            target_lifetimes = []
             mean_lifetimes = []
             t90_lifetimes = []
             failure_rates = []
+            runtime_summaries = []
+            fallback_used = False
 
             for w in width_range:
-                predictor = LifetimePredictor(num_cells=num_cells, width=w)
-                pred = predictor.predict_array_lifetime(temperature)
+                pred = predict_lifetime_native_first(
+                    temperature=temperature,
+                    width=w,
+                    num_cells=num_cells,
+                    duty_cycle=duty_cycle,
+                    failure_rate=failure_rate,
+                    vgs=voltage,
+                    vds=voltage,
+                    vth=0.4,
+                    compute_mode="auto",
+                    latency_mode="interactive",
+                )
+                target_lifetimes.append(pred['lifetime_at_failure_rate'])
                 mean_lifetimes.append(pred['mean_lifetime'])
                 t90_lifetimes.append(pred['t_90pct'])
                 failure_rates.append(pred['failure_rate_fit'])
+                runtime_summaries.append(summarize_lifetime_runtime(pred))
+                fallback_used = fallback_used or bool(pred.get('_exec', {}).get('fallback'))
+
+        st.caption(f"실행 소스 예시: {runtime_summaries[0]}")
+        if fallback_used:
+            st.info("공정 최적화 분석 중 일부 또는 전체 포인트가 Python fallback으로 실행되었습니다.")
 
         col1, col2 = st.columns(2)
 
         with col1:
             fig, ax = plt.subplots(figsize=(10, 6))
-            ax.plot(width_range, mean_lifetimes, 'b-o', linewidth=2.5, markersize=6)
-            ax.fill_between(width_range, t90_lifetimes, alpha=0.2, color='blue', label='90% 신뢰도')
+            ax.plot(width_range, target_lifetimes, 'b-o', linewidth=2.5, markersize=6, label='목표 수명')
+            ax.fill_between(width_range, t90_lifetimes, alpha=0.2, color='blue', label='90% 신뢰도 참조')
 
-            optimal_idx = np.argmax(mean_lifetimes)
-            ax.scatter(width_range[optimal_idx], mean_lifetimes[optimal_idx], 
+            optimal_idx = np.argmax(target_lifetimes)
+            ax.scatter(width_range[optimal_idx], target_lifetimes[optimal_idx], 
                       s=300, color='red', marker='*', zorder=5, label='최적 크기')
 
             ax.set_xlabel('트랜지스터 폭 (μm)')
             ax.set_ylabel('수명 (년)')
-            ax.set_title('폭에 따른 수명')
+            ax.set_title(f'폭에 따른 목표 수명 ({target_survival_percent:.1f}% 생존)')
             ax.legend()
             ax.grid(alpha=0.3)
 
@@ -702,7 +813,7 @@ elif sim_type == "🔥 신뢰성 분석 (NBTI/HCI)":
             plt.close()
 
             st.success(f"**최적 트랜지스터 폭: {width_range[optimal_idx]:.2f} μm** "
-                      f"(수명: {mean_lifetimes[optimal_idx]:.2f}년)")
+                      f"(목표 수명: {target_lifetimes[optimal_idx]:.2f}년)")
 
         with col2:
             fig, ax = plt.subplots(figsize=(10, 6))
