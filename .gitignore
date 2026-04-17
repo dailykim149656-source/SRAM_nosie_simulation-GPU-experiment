@@ -4,6 +4,10 @@ __pycache__/
 *.pyc
 *.pyo
 .env
+.claude/
+.omx/logs/
+.omx/state/
+.omx/metrics.json
 research_data.json
 customer_data.json
 logs/
