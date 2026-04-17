@@ -418,6 +418,15 @@ class CircuitToSystemTranslator:
         """
         self.workload = workload
 
+    @staticmethod
+    def _acceptability_thresholds() -> Dict:
+        """Shared thresholds for boolean gating and human-readable verdicts."""
+        return {
+            'accuracy_degradation_percent': 10.0,
+            'tokens_per_second': 10.0,
+            'ber': 1e-2,
+        }
+
     def translate_to_system_kpis(self,
                                  snm_mv: float,
                                  vmin_v: float,
@@ -462,10 +471,11 @@ class CircuitToSystemTranslator:
         # Step 7: Acceptability check (very relaxed for design space exploration)
         # NOTE: For design space exploration, we relax these significantly
         # to allow discovery of aggressive designs in the Pareto frontier
+        thresholds = self._acceptability_thresholds()
         is_acceptable = (
-            accuracy_degradation < 10.0 and  # < 10% accuracy loss (very relaxed)
-            tokens_per_sec > 10 and          # > 10 tokens/sec (very relaxed)
-            ber < 1e-2                       # BER < 1% (very relaxed for exploration)
+            accuracy_degradation < thresholds['accuracy_degradation_percent'] and
+            tokens_per_sec > thresholds['tokens_per_second'] and
+            ber < thresholds['ber']
         )
 
         return {
@@ -486,7 +496,7 @@ class CircuitToSystemTranslator:
                 'energy_per_token_uj': energy_per_token_uj,
             },
             'is_acceptable': is_acceptable,
-            'verdict': self._generate_verdict(accuracy_degradation, tokens_per_sec, ber)
+            'verdict': self._generate_verdict(accuracy_degradation, tokens_per_sec, ber, thresholds)
         }
 
     def _estimate_ber(self, snm_mv: float, temp_c: float, vmin_v: float) -> float:
@@ -583,18 +593,37 @@ class CircuitToSystemTranslator:
 
         return penalty_ms
 
-    def _generate_verdict(self, accuracy_deg: float, tokens_per_sec: float, ber: float) -> str:
+    def _generate_verdict(self, accuracy_deg: float, tokens_per_sec: float, ber: float, thresholds: Dict = None) -> str:
         """Generate human-readable verdict"""
-        if accuracy_deg > 1.0:
-            return f"UNACCEPTABLE: Accuracy degradation {accuracy_deg:.2f}% exceeds 1% threshold"
-        elif accuracy_deg > 0.5:
-            return f"MARGINAL: Accuracy degradation {accuracy_deg:.2f}% near 0.5% limit"
-        elif tokens_per_sec < 50:
-            return f"UNACCEPTABLE: Throughput {tokens_per_sec:.1f} tokens/sec below 50 threshold"
-        elif ber > 1e-6:
-            return f"MARGINAL: BER {ber:.2e} approaching limit"
-        else:
-            return f"ACCEPTABLE: Accuracy loss {accuracy_deg:.3f}%, {tokens_per_sec:.1f} tok/s"
+        thresholds = thresholds or self._acceptability_thresholds()
+        accuracy_limit = float(thresholds['accuracy_degradation_percent'])
+        tokens_limit = float(thresholds['tokens_per_second'])
+        ber_limit = float(thresholds['ber'])
+
+        if accuracy_deg >= accuracy_limit:
+            return (
+                f"UNACCEPTABLE: Accuracy degradation {accuracy_deg:.2f}% "
+                f"exceeds {accuracy_limit:.1f}% threshold"
+            )
+        if tokens_per_sec <= tokens_limit:
+            return (
+                f"UNACCEPTABLE: Throughput {tokens_per_sec:.1f} tokens/sec "
+                f"falls below {tokens_limit:.1f} threshold"
+            )
+        if ber >= ber_limit:
+            return f"UNACCEPTABLE: BER {ber:.2e} exceeds {ber_limit:.2e} threshold"
+
+        if (
+            accuracy_deg >= 0.8 * accuracy_limit or
+            tokens_per_sec <= 1.2 * tokens_limit or
+            ber >= 0.5 * ber_limit
+        ):
+            return (
+                f"MARGINAL: Accuracy loss {accuracy_deg:.3f}%, "
+                f"{tokens_per_sec:.1f} tok/s, BER {ber:.2e}"
+            )
+
+        return f"ACCEPTABLE: Accuracy loss {accuracy_deg:.3f}%, {tokens_per_sec:.1f} tok/s"
 
 
 # ==============================================================================

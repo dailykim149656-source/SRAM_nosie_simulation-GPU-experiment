@@ -186,8 +186,10 @@ class ReliabilityAwareSRAMCell:
         # 셀 상태
         self.stored_bit = 0
         self.stress_time = 0  # 누적 스트레스 시간
-        self.vth_nmos = 0.4   # NMOS 임계 전압
-        self.vth_pmos = -0.4  # PMOS 임계 전압
+        self.initial_vth_nmos = 0.4
+        self.initial_vth_pmos = -0.4
+        self.vth_nmos = self.initial_vth_nmos   # NMOS 임계 전압
+        self.vth_pmos = self.initial_vth_pmos  # PMOS 임계 전압
 
     def stress_cell(self, temperature: float, vgs: float, vds: float,
                    stress_duration: float) -> Dict:
@@ -208,17 +210,17 @@ class ReliabilityAwareSRAMCell:
 
         # NMOS 열화
         nmos_shift, nbti, hci = self.reliability_model.calculate_total_vth_shift(
-            temperature, vgs, vds, self.vth_nmos, self.width, self.stress_time
+            temperature, vgs, vds, self.initial_vth_nmos, self.width, self.stress_time
         )
 
         # PMOS 열화 (반대 극성)
         pmos_shift, nbti_p, hci_p = self.reliability_model.calculate_total_vth_shift(
-            temperature, -vgs, -vds, -self.vth_pmos, self.width, self.stress_time
+            temperature, -vgs, -vds, -self.initial_vth_pmos, self.width, self.stress_time
         )
 
-        # 업데이트
-        self.vth_nmos += nmos_shift
-        self.vth_pmos -= pmos_shift  # 반대 극성
+        # 누적 스트레스 시간에 대한 총 열화를 기준 상태에 재적용한다.
+        self.vth_nmos = self.initial_vth_nmos + nmos_shift
+        self.vth_pmos = self.initial_vth_pmos - pmos_shift  # 반대 극성
 
         return {
             'nmos_vth_shift': nmos_shift,
@@ -295,13 +297,19 @@ class LifetimePredictor:
             duty_cycle: 작동 주기 (0~1)
             failure_rate: 실패 허용 비율 (예: 1%)
         """
+        if not 0 < duty_cycle <= 1:
+            raise ValueError("duty_cycle must be in the range (0, 1].")
+        if not 0 < failure_rate < 1:
+            raise ValueError("failure_rate must be in the range (0, 1).")
+
         lifetimes = []
 
         for cell in self.cells:
             lifetime = cell.estimate_lifetime(temperature)
             lifetimes.append(lifetime)
 
-        lifetimes = np.array(lifetimes)
+        stress_lifetimes = np.array(lifetimes, dtype=float)
+        lifetimes = stress_lifetimes / float(duty_cycle)
 
         # 통계
         mean_lifetime = np.mean(lifetimes)
@@ -315,6 +323,7 @@ class LifetimePredictor:
         # 신뢰도 90%, 99% 시간 계산
         t_90pct = scale_param * (-np.log(0.9)) ** (1/shape_param)
         t_99pct = scale_param * (-np.log(0.99)) ** (1/shape_param)
+        lifetime_at_failure_rate = scale_param * (-np.log(1.0 - failure_rate)) ** (1 / shape_param)
 
         # 고장률 (FIT: Failures In Time per 10^9 hours)
         failure_rate_fit = 1e9 / (mean_lifetime * 365.25 * 24)
@@ -326,8 +335,11 @@ class LifetimePredictor:
             'max_lifetime': np.max(lifetimes),
             't_90pct': t_90pct,
             't_99pct': t_99pct,
+            'lifetime_at_failure_rate': lifetime_at_failure_rate,
             'failure_rate_fit': failure_rate_fit,
-            'cell_lifetimes': lifetimes
+            'cell_lifetimes': lifetimes,
+            'duty_cycle': float(duty_cycle),
+            'accepted_failure_rate': float(failure_rate),
         }
 
     def analyze_temperature_sensitivity(self, temperatures: List[float] = None) -> Dict:

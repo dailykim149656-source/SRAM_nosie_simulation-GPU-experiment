@@ -248,7 +248,9 @@ class SRAMArray:
             'bit_errors': 0
         }
 
-        for i in range(min(len(input_data), self.num_cells)):
+        processed_cells = min(len(input_data), self.num_cells)
+
+        for i in range(processed_cells):
             cell = self.cells[i]
 
             # 쓰기
@@ -264,7 +266,7 @@ class SRAMArray:
             if (output > 0.5 and input_data[i] == 0) or (output <= 0.5 and input_data[i] == 1):
                 results['bit_errors'] += 1
 
-        results['bit_error_rate'] = results['bit_errors'] / self.num_cells if self.num_cells > 0 else 0
+        results['bit_error_rate'] = results['bit_errors'] / processed_cells if processed_cells > 0 else 0
 
         return results
 

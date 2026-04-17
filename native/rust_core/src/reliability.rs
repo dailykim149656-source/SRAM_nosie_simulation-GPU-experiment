@@ -69,12 +69,14 @@ pub struct LifetimeRequest {
 
 #[derive(Debug, Clone, Serialize)]
 pub struct LifetimeResponse {
+    pub backend: String,
     pub mean_lifetime: f64,
     pub std_lifetime: f64,
     pub min_lifetime: f64,
     pub max_lifetime: f64,
     pub t_90pct: f64,
     pub t_99pct: f64,
+    pub lifetime_at_failure_rate: f64,
     pub failure_rate_fit: f64,
     pub cell_lifetimes: Vec<f64>,
     pub duty_cycle: f64,
@@ -91,18 +93,25 @@ pub fn predict_lifetime(req: &LifetimeRequest) -> Result<LifetimeResponse, Strin
     if !(req.failure_threshold.is_finite() && req.failure_threshold > 0.0) {
         return Err("failure_threshold must be a finite positive value".to_string());
     }
+    if !(req.duty_cycle.is_finite() && req.duty_cycle > 0.0 && req.duty_cycle <= 1.0) {
+        return Err("duty_cycle must be in the range (0, 1]".to_string());
+    }
+    if !(req.failure_rate.is_finite() && req.failure_rate > 0.0 && req.failure_rate < 1.0) {
+        return Err("failure_rate must be in the range (0, 1)".to_string());
+    }
 
     let num_cells = req.num_cells.max(1);
     let mut lifetimes = Vec::with_capacity(num_cells);
     let seed = req.seed.unwrap_or(0xC0DE_2026_u64);
     let mut rng = SmallRng::seed_from_u64(seed);
     let unit_normal = Normal::new(0.0, 1.0).map_err(|err| err.to_string())?;
+    let effective_duty_cycle = req.duty_cycle.max(1e-12);
 
     for _ in 0..num_cells {
         let jitter: f64 = rng.sample(unit_normal);
         let width_jitter = (1.0_f64 + jitter * 0.03_f64).clamp(0.5_f64, 1.5_f64);
         let effective_width = req.width * width_jitter;
-        let lifetime = estimate_lifetime(
+        let stress_lifetime = estimate_lifetime(
             req.temperature,
             req.vgs,
             req.vds,
@@ -110,7 +119,7 @@ pub fn predict_lifetime(req: &LifetimeRequest) -> Result<LifetimeResponse, Strin
             effective_width,
             req.failure_threshold,
         );
-        lifetimes.push(lifetime);
+        lifetimes.push(stress_lifetime / effective_duty_cycle);
     }
 
     let mean_lifetime = mean(&lifetimes);
@@ -125,15 +134,19 @@ pub fn predict_lifetime(req: &LifetimeRequest) -> Result<LifetimeResponse, Strin
     let scale_param = mean_lifetime.max(1e-12);
     let t_90pct = scale_param * (-0.9_f64.ln()).powf(1.0 / shape_param);
     let t_99pct = scale_param * (-0.99_f64.ln()).powf(1.0 / shape_param);
+    let lifetime_at_failure_rate =
+        scale_param * (-(1.0_f64 - req.failure_rate).max(1e-12).ln()).powf(1.0 / shape_param);
     let failure_rate_fit = 1e9 / (scale_param * 365.25 * 24.0);
 
     Ok(LifetimeResponse {
+        backend: "lifetime-native".to_string(),
         mean_lifetime,
         std_lifetime,
         min_lifetime,
         max_lifetime,
         t_90pct,
         t_99pct,
+        lifetime_at_failure_rate,
         failure_rate_fit,
         cell_lifetimes: lifetimes,
         duty_cycle: req.duty_cycle,

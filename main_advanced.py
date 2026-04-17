@@ -324,13 +324,14 @@ class AdvancedSRAMArray:
             'monte_carlo_ber': [],
             'retention_analysis': []
         }
+        processed_cells = min(len(input_data), self.num_cells)
 
         # Monte Carlo 시뮬레이션
         for run in range(monte_carlo_runs):
             run_errors = 0
             run_outputs = []
 
-            for i in range(min(len(input_data), self.num_cells)):
+            for i in range(processed_cells):
                 cell = self.cells[i]
 
                 # 쓰기
@@ -353,9 +354,9 @@ class AdvancedSRAMArray:
                    (output <= 0.5 and input_data[i] == 1):
                     run_errors += 1
 
-            results['monte_carlo_ber'].append(run_errors / self.num_cells)
+            results['monte_carlo_ber'].append(run_errors / processed_cells if processed_cells > 0 else 0.0)
 
-        results['bit_errors'] = int(np.mean(results['monte_carlo_ber']) * self.num_cells)
+        results['bit_errors'] = int(np.mean(results['monte_carlo_ber']) * processed_cells)
         results['bit_error_rate'] = np.mean(results['monte_carlo_ber'])
         results['ber_std'] = np.std(results['monte_carlo_ber'])
         results['ber_confidence_95'] = 1.96 * results['ber_std'] / np.sqrt(monte_carlo_runs)
