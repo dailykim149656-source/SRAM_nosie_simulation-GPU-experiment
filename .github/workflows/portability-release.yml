@@ -1,0 +1,47 @@
+name: Portability Release
+
+on:
+  push:
+    tags:
+      - "portability-v*"
+  workflow_dispatch:
+
+jobs:
+  portability-release:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install benchmark dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r requirements-base.txt -r requirements-benchmark.txt
+
+      - name: Run portability verification
+        run: |
+          python -m unittest discover -s tests -p "test_*.py"
+          python scripts/verify_portability_prd.py
+          python scripts/build_portability_dashboard.py
+          python scripts/generate_portability_changelog.py
+
+      - name: Upload release evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: portability-release-evidence
+          path: |
+            reports/portability
+
+      - name: Create GitHub release
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            reports/portability/changelog.md
+            reports/portability/prd_verify.json
+            reports/portability/dashboard.md

@@ -82,6 +82,48 @@ class WorkloadRegressionTests(unittest.TestCase):
 
 
 class NativeBackendRegressionTests(unittest.TestCase):
+    def test_simulate_array_python_fallback_includes_runtime_capabilities(self) -> None:
+        python_response = {"backend": "standard-python", "bit_error_rate": 0.0}
+
+        with (
+            mock.patch.object(native_backend, "_resolve_engine", return_value=("gpu", "forced_gpu", 1, True)),
+            mock.patch.object(native_backend, "_json_call", return_value=None),
+            mock.patch.object(native_backend, "_simulate_array_torch_gpu", return_value=None),
+            mock.patch.object(native_backend, "_simulate_array_python", return_value=python_response),
+        ):
+            result = native_backend.simulate_array({"compute_mode": "gpu", "num_cells": 4})
+
+        self.assertEqual(result["backend"], "standard-python")
+        self.assertTrue(result["_exec"]["fallback"])
+        capability_names = {cap["name"] for cap in result["_exec"]["capabilities"]}
+        self.assertIn("simulate_python_fallback", capability_names)
+
+    def test_predict_lifetime_uses_shared_torch_runtime_reason_labels(self) -> None:
+        torch_runtime_response = {
+            "backend": "torch-gpu",
+            "accelerator_backend": "hip",
+            "mean_lifetime": 10.0,
+            "std_lifetime": 1.0,
+            "min_lifetime": 9.0,
+            "max_lifetime": 11.0,
+            "t_90pct": 4.0,
+            "t_99pct": 1.0,
+            "failure_rate_fit": 42.0,
+            "cell_lifetimes": [10.0, 10.0],
+        }
+
+        with (
+            mock.patch.object(native_backend, "_resolve_engine", return_value=("gpu", "forced_gpu", 1, True)),
+            mock.patch.object(native_backend, "_json_call", return_value=None),
+            mock.patch.object(native_backend, "_predict_lifetime_torch_gpu", return_value=torch_runtime_response),
+        ):
+            result = native_backend.predict_lifetime({"compute_mode": "gpu", "failure_rate": 0.01})
+
+        self.assertEqual(result["_exec"]["selected"], "gpu")
+        self.assertIn("torch_hip_backend", result["_exec"]["reason"])
+        capability_names = {cap["name"] for cap in result["_exec"]["capabilities"]}
+        self.assertIn("lifetime_torch_accelerated", capability_names)
+
     def test_predict_lifetime_adds_backend_label_for_native_response(self) -> None:
         native_response = {
             "mean_lifetime": 12.0,

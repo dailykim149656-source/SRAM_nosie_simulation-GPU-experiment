@@ -31,9 +31,10 @@ def detect_gpu_available() -> bool:
         return False
 
     try:
-        import torch  # type: ignore
+        from backends.torch_portable import torch_accelerator_info
 
-        if bool(torch.cuda.is_available()):
+        available, _, _ = torch_accelerator_info()
+        if bool(available):
             return True
     except Exception:
         pass
@@ -97,6 +98,13 @@ def select_engine(problem_kind: str, request: Dict[str, Any]) -> Tuple[str, str,
         compute_mode = "auto"
 
     gpu_available = detect_gpu_available()
+    if problem_kind == "analytical_dataset":
+        try:
+            from backends.registry import get_gpu_backend_capability
+
+            gpu_available = bool(get_gpu_backend_capability(device_mode="auto").available)
+        except Exception:
+            gpu_available = detect_gpu_available()
     work_size = estimate_work_size(problem_kind, request)
 
     if compute_mode == "cpu":

@@ -1,0 +1,17 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "sram-gpu-portability"
+version = "0.1.0"
+description = "SRAM portability benchmark and validation tooling"
+readme = "README.md"
+requires-python = ">=3.11"
+
+[project.scripts]
+sram-benchmarks = "benchmarks.cli:main"
+sram-benchmarks-validate = "benchmarks.validate:main"
+sram-portability-dashboard = "scripts.build_portability_dashboard:main"
+sram-portability-verify = "scripts.verify_portability_prd:main"
+sram-portability-changelog = "scripts.generate_portability_changelog:main"

@@ -1,0 +1,11 @@
+FROM python:3.11-slim
+
+WORKDIR /workspace
+
+COPY requirements-base.txt requirements-benchmark.txt ./
+RUN python -m pip install --upgrade pip \
+    && python -m pip install -r requirements-base.txt -r requirements-benchmark.txt
+
+COPY . .
+
+CMD ["python", "-m", "benchmarks.cli", "--suite", "smoke", "--device", "cpu"]

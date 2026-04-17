@@ -4,6 +4,11 @@ Only the public-facing helper scripts are included in this repository snapshot.
 
 ## Included
 
+- `python -m benchmarks.cli`
+- `python -m benchmarks.validate`
+- `scripts/build_portability_dashboard.py`
+- `scripts/generate_portability_changelog.py`
+- `scripts/verify_portability_prd.py`
 - `scripts/run_pdk_matrix.py`
 - `scripts/run_matrix_parallel_benchmark.py`
 - `scripts/run_model_selection.py`
@@ -20,6 +25,12 @@ Only the public-facing helper scripts are included in this repository snapshot.
 ## Usage
 
 ```powershell
+python -m benchmarks.cli --suite smoke --device cpu
+python -m benchmarks.run_suite --suite smoke --device auto
+python -m benchmarks.validate --artifact-dir artifacts/benchmarks/<run_id>
+python scripts/build_portability_dashboard.py
+python scripts/generate_portability_changelog.py
+python scripts/verify_portability_prd.py
 python scripts/run_pdk_matrix.py
 python scripts/run_matrix_parallel_benchmark.py
 python scripts/run_model_selection.py
@@ -47,5 +58,12 @@ Latest run pointer:
 
 - Internal experimental helpers and bulk archival scripts are intentionally not included in this public snapshot.
 - The evidence pack and exported research bundle operate only on the representative artifacts that are bundled here.
-- `run_gpu_analytical_benchmark.py` requires optional PyTorch + CUDA only for the GPU lane; CPU lanes remain runnable without it.
+- `run_gpu_analytical_benchmark.py` is now a compatibility wrapper over `python -m benchmarks.cli`.
+- `python -m benchmarks.validate` validates a generated portability benchmark artifact directory.
+- `build_portability_dashboard.py` builds a markdown summary over recent portability benchmark artifacts.
+- `generate_portability_changelog.py` writes a sanitized portability changelog from the current evidence set.
+- `verify_portability_prd.py` checks the portability PRD acceptance criteria end to end.
+- In CI or local smoke checks, prefer writing wrapper CSV/Markdown outputs under `artifacts/` or another disposable path if you do not want working-tree report files.
+- The GPU lane requires optional PyTorch + CUDA; CPU lanes remain runnable without it.
 - `check_ops_plan_v1_env.py` is the reproducibility preflight for Ops Plan v1.
+- `.github/workflows/portability-release.yml` automates release-time verification, changelog generation, and evidence publishing on `portability-v*` tags.

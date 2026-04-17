@@ -1,0 +1,39 @@
+{
+  "checks": [
+    {
+      "name": "AC-1_and_AC-3",
+      "ok": true,
+      "detail": "CPU-only smoke passed and GPU lane degraded gracefully"
+    },
+    {
+      "name": "AC-2_and_AC-4",
+      "ok": true,
+      "detail": "wrapper compatibility and standard artifact lane set verified"
+    },
+    {
+      "name": "AC-5",
+      "ok": true,
+      "detail": "fidelity report contains pair comparisons and thresholds"
+    },
+    {
+      "name": "AC-6",
+      "ok": true,
+      "detail": "new reports and docs are sanitized"
+    },
+    {
+      "name": "AC-7",
+      "ok": true,
+      "detail": "README covers purpose, verified scope, limits, CPU/CUDA usage, and ROCm/HIP plan"
+    },
+    {
+      "name": "AC-8",
+      "ok": true,
+      "detail": "HIP porting plan contains required inventory and limitation notes"
+    },
+    {
+      "name": "AC-9",
+      "ok": true,
+      "detail": "CI workflow covers tests, CPU smoke, artifact validation, and wrapper run"
+    }
+  ]
+}

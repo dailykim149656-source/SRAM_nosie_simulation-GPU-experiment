@@ -1,0 +1,55 @@
+name: CPU Smoke
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  cpu-smoke:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install benchmark dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r requirements-base.txt -r requirements-benchmark.txt
+
+      - name: Compile Python sources
+        run: |
+          python -m compileall \
+            backends \
+            benchmarks \
+            tests \
+            gpu_analytical_adapter.py \
+            execution_policy.py \
+            scripts/run_gpu_analytical_benchmark.py
+
+      - name: Run unit tests
+        run: python -m unittest discover -s tests -p "test_*.py"
+
+      - name: Run benchmark smoke
+        env:
+          SRAM_FORCE_CPU: "1"
+        run: python -m benchmarks.cli --suite smoke
+
+      - name: Validate latest artifact
+        shell: bash
+        run: |
+          latest_artifact="$(find artifacts/benchmarks -mindepth 1 -maxdepth 1 -type d | sort | tail -n 1)"
+          python -m benchmarks.validate --artifact-dir "$latest_artifact"
+
+      - name: Run compatibility wrapper
+        run: python scripts/run_gpu_analytical_benchmark.py --cases 1024x64 --out-csv artifacts/compat/gpu_analytical_benchmark.csv --out-report artifacts/compat/gpu_analytical_benchmark.md
+
+      - name: Upload smoke artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: cpu-smoke-artifacts
+          path: |
+            artifacts/benchmarks
+            artifacts/compat

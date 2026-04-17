@@ -1,0 +1,50 @@
+name: Portability Maintenance
+
+on:
+  workflow_dispatch:
+
+jobs:
+  portability-maintenance:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install benchmark dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r requirements-base.txt -r requirements-benchmark.txt
+
+      - name: Run tests
+        run: python -m unittest discover -s tests -p "test_*.py"
+
+      - name: CPU portability smoke
+        env:
+          SRAM_FORCE_CPU: "1"
+        run: python -m benchmarks.cli --suite smoke
+
+      - name: Validate latest artifact
+        shell: bash
+        run: |
+          latest_artifact="$(find artifacts/benchmarks -mindepth 1 -maxdepth 1 -type d | sort | tail -n 1)"
+          python -m benchmarks.validate --artifact-dir "$latest_artifact"
+
+      - name: Build dashboard
+        run: python scripts/build_portability_dashboard.py --artifact-root artifacts/benchmarks --out-report reports/portability/dashboard.md
+
+      - name: Verify PRD
+        run: python scripts/verify_portability_prd.py
+
+      - name: Generate changelog
+        run: python scripts/generate_portability_changelog.py
+
+      - name: Upload portability artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: portability-maintenance-artifacts
+          path: |
+            artifacts/benchmarks
+            reports/portability

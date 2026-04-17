@@ -1,3 +1,2 @@
 -r requirements-base.txt
 -r requirements-benchmark.txt
--r requirements-ui.txt
