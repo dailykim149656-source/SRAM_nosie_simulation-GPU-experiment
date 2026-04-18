@@ -15,7 +15,7 @@ from typing import Any, Dict, List, Optional, Tuple
 from backends.base import BackendCapability
 from backends import runtime_torch_kernels
 from backends.registry import get_runtime_backend_capabilities
-from backends.torch_portable import torch_accelerator_info
+from backends.torch_portable import get_torch_runtime_metadata
 from execution_policy import select_engine
 
 
@@ -187,8 +187,19 @@ def _resolve_engine(problem_kind: str, request: Dict[str, Any]) -> Tuple[str, st
     return select_engine(problem_kind=problem_kind, request=request)
 
 
-def _torch_backend_reason_label(backend_kind: str) -> str:
-    return "torch_hip_backend" if str(backend_kind).strip().lower() == "hip" else "torch_cuda_backend"
+def _torch_backend_reason_label(backend_kind: str, runtime_kind: str = "") -> str:
+    normalized_backend = str(backend_kind).strip().lower()
+    normalized_runtime = str(runtime_kind).strip().lower()
+    if normalized_backend == "hip" or normalized_runtime == "rocm":
+        return "torch_rocm_backend"
+    if normalized_backend == "cuda" or normalized_runtime == "cuda":
+        return "torch_cuda_backend"
+    runtime = get_torch_runtime_metadata()
+    if runtime.accelerator_available and runtime.backend_kind == "hip":
+        return "torch_rocm_backend"
+    if runtime.accelerator_available and runtime.backend_kind == "cuda":
+        return "torch_cuda_backend"
+    return "torch_accelerated_backend"
 
 
 def _runtime_capabilities(problem_kind: str) -> List[BackendCapability]:
@@ -264,7 +275,10 @@ def simulate_array(request: Dict[str, Any]) -> Dict[str, Any]:
             return _attach_exec_meta(
                 torch_gpu_response,
                 selected="gpu",
-                reason=f"{reason}|{_torch_backend_reason_label(str(torch_gpu_response.get('accelerator_backend', 'cuda')))}",
+                reason=(
+                    f"{reason}|"
+                    f"{_torch_backend_reason_label(str(torch_gpu_response.get('accelerator_backend', 'cuda')), str(torch_gpu_response.get('runtime_kind', '')))}"
+                ),
                 work_size=work_size,
                 gpu_available=gpu_available,
                 fallback=False,
@@ -349,7 +363,10 @@ def predict_lifetime(request: Dict[str, Any]) -> Dict[str, Any]:
                     default_backend="lifetime-torch-gpu",
                 ),
                 selected="gpu",
-                reason=f"{reason}|{_torch_backend_reason_label(str(torch_gpu_response.get('accelerator_backend', 'cuda')))}",
+                reason=(
+                    f"{reason}|"
+                    f"{_torch_backend_reason_label(str(torch_gpu_response.get('accelerator_backend', 'cuda')), str(torch_gpu_response.get('runtime_kind', '')))}"
+                ),
                 work_size=work_size,
                 gpu_available=gpu_available,
                 fallback=False,
@@ -434,9 +451,10 @@ def optimize_design(request: Dict[str, Any]) -> List[Dict[str, Any]]:
                 torch_gpu_response,
                 selected="gpu",
                 reason=(
-                    f"{reason}|{_torch_backend_reason_label(str(torch_gpu_response[0].get('accelerator_backend', 'cuda')))}"
+                    f"{reason}|"
+                    f"{_torch_backend_reason_label(str(torch_gpu_response[0].get('accelerator_backend', 'cuda')), str(torch_gpu_response[0].get('runtime_kind', '')))}"
                     if torch_gpu_response
-                    else f"{reason}|torch_cuda_backend"
+                    else f"{reason}|torch_accelerated_backend"
                 ),
                 work_size=work_size,
                 gpu_available=gpu_available,

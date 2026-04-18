@@ -1,6 +1,6 @@
 # HIP Porting Plan
 
-This document records the current CUDA touch points in the repository and the minimum work needed to make a future ROCm/HIP migration deliberate instead of ad hoc.
+This document records the current accelerator touch points in the repository and the minimum work needed to make a future ROCm/HIP migration deliberate instead of ad hoc.
 
 ## Current Constraint
 
@@ -12,32 +12,33 @@ This document records the current CUDA touch points in the repository and the mi
 
 ### Analytical Benchmark Path
 
+- `backends/accelerator_lane.py`
+  - canonical accelerator lane for the benchmark path
+  - consumes shared torch runtime metadata
 - `backends/cuda_lane.py`
-  - CUDA availability gate for the benchmark GPU lane
-  - CUDA device-name reporting
-  - `torch.cuda.synchronize()` call after GPU inference
+  - compatibility shim for older CUDA-oriented imports
 - `backends/torch_portable.py`
   - `torch.cuda.is_available()`
   - `torch.cuda.get_device_name(0)`
-  - device resolution currently prefers `"cuda"` when available
+  - device resolution now flows through shared runtime metadata instead of ad hoc CUDA checks
 - `execution_policy.py`
-  - generic GPU detection still checks `torch.cuda.is_available()`
-  - optional CuPy runtime detection is CUDA-specific
+  - generic GPU detection still treats accelerator presence as a GPU/no-GPU decision for policy purposes
+  - optional CuPy runtime detection is still CUDA-specific
 
 ### Existing Non-Ported GPU/Native Paths
 
 - `native_backend.py`
-  - hard-coded `"cuda"` device strings in torch fallback paths
-  - `torch.cuda.is_available()` checks
-  - `torch.cuda`-specific tensor generator and synchronization assumptions
-  - many GPU helpers still assume NVIDIA CUDA rather than a generic torch device
+  - torch fallback math kernels for simulate/lifetime/optimize
+  - accelerator labeling for torch fallback reasons
+  - mixed native/torch/python dispatch policy
 - legacy analytical helper facade:
-  - `gpu_analytical_adapter.py` itself is now only a facade, but its exported surface still serves CUDA-capable code paths through the new backend modules
+  - `gpu_analytical_adapter.py` remains a compatibility surface
 
 ## HIPIFY Candidate Areas
 
 These are the primary code regions to run through HIP-oriented review or automated conversion first:
 
+- `backends/accelerator_lane.py`
 - `backends/cuda_lane.py`
 - `backends/torch_portable.py`
 - `execution_policy.py`
@@ -77,14 +78,23 @@ These are the primary code regions to run through HIP-oriented review or automat
 4. Validate CPU vs ROCm parity on the same shared feature matrix used by the current fidelity smoke.
 5. Migrate `native_backend.py` GPU fallbacks after the benchmark path is proven stable.
 
+See also:
+
+- `docs/rocm_validation_matrix.md`
+- `docs/instinct_target_profile.md`
+- `docs/hipify_preflight_inventory.md`
+- `docs/rocm_manual_checklist.md`
+- `docs/native_backend_rocm_migration_plan.md`
+- `docs/ci_future_rocm_runner_note.md`
+
 ## Safe External Claim
 
 Use this wording:
 
-> CUDA-specific paths are isolated to reduce future ROCm/HIP porting cost, but AMD hardware validation has not been performed yet.
+> The canonical `torch_accelerated` lane is currently CUDA-validated, accelerator-specific paths are isolated to reduce future ROCm/HIP porting cost, and AMD hardware validation has not been performed yet.
 
 Do not use:
 
-- “ROCm-ready”
-- “HIP-complete”
-- “portable to AMD GPUs today”
+- `ROCm-ready`
+- `HIP-complete`
+- `portable to AMD GPUs today`

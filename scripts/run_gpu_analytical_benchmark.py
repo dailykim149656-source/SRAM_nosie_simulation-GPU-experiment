@@ -17,7 +17,7 @@ from benchmarks.runner import run_suite
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description="Run analytical dataset GPU benchmark")
+    parser = argparse.ArgumentParser(description="Run the compatibility analytical benchmark wrapper")
     parser.add_argument("--cases", default="10000x512,5000x1024,20000x512")
     parser.add_argument("--seed", type=int, default=20260310)
     parser.add_argument("--latency-mode", default="batch")

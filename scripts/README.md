@@ -64,6 +64,7 @@ Latest run pointer:
 - `generate_portability_changelog.py` writes a sanitized portability changelog from the current evidence set.
 - `verify_portability_prd.py` checks the portability PRD acceptance criteria end to end.
 - In CI or local smoke checks, prefer writing wrapper CSV/Markdown outputs under `artifacts/` or another disposable path if you do not want working-tree report files.
-- The GPU lane requires optional PyTorch + CUDA; CPU lanes remain runnable without it.
-- `check_ops_plan_v1_env.py` is the reproducibility preflight for Ops Plan v1.
+- The canonical accelerator lane is `torch_accelerated`; it is currently CUDA-validated when a compatible PyTorch build is installed, while ROCm validation is still pending.
+- `check_ops_plan_v1_env.py` is the reproducibility preflight for Ops Plan v1 and now reports generic torch accelerator/runtime readiness instead of CUDA-only labels.
+- `verify_ops_plan_v1_outputs.py` accepts both historical `gpu_pytorch` rows and canonical `torch_accelerated` rows by normalizing lane aliases during verification.
 - `.github/workflows/portability-release.yml` automates release-time verification, changelog generation, and evidence publishing on `portability-v*` tags.

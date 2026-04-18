@@ -16,6 +16,6 @@ class FidelitySmokeTests(unittest.TestCase):
         self.assertLessEqual(record["mean_abs_delta"], record["threshold_mean_abs_delta"])
 
     def test_gpu_fidelity_is_skipped_when_suite_is_forced_cpu(self) -> None:
-        record = self.records["cpu_existing_vs_gpu_pytorch"]
+        record = self.records["cpu_existing_vs_torch_accelerated"]
         self.assertEqual(record["status"], "skipped")
         self.assertIn("device_mode_cpu", str(record.get("detail", "")))

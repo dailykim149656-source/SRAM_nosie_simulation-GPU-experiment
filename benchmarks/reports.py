@@ -7,7 +7,7 @@ import json
 from pathlib import Path
 from typing import Iterable
 
-from benchmarks.schema import validate_report_text
+from benchmarks.schema import normalize_lane_name, normalize_fidelity_pair_name, validate_report_text
 
 
 def write_json(path: Path, payload: dict[str, object]) -> None:
@@ -38,6 +38,8 @@ def build_report_markdown(
         f"- Device mode: `{metadata['device_mode']}`",
         f"- Seed: `{metadata['seed']}`",
         f"- Warmup / repeats: `{metadata['warmup_runs']}` / `{metadata['repeat_runs']}`",
+        f"- Validation scope: `{metadata.get('validation_scope', 'unknown')}`",
+        f"- Claim level: `{metadata.get('claim_level', 'unknown')}`",
         f"- Selected artifact files: `{', '.join(str(name) for name in metadata['artifact_files'])}`",
         "",
         "## Environment",
@@ -45,17 +47,24 @@ def build_report_markdown(
         f"- Python: `{metadata['env']['python_version']}`",
         f"- Platform: `{metadata['env']['platform']}`",
         f"- Torch: `{metadata['env'].get('torch_version') or 'unavailable'}`",
-        f"- CUDA: `{metadata['env']['cuda_device_name']}`",
+        f"- Torch build tag: `{metadata['env'].get('torch_build_tag') or 'none'}`",
+        f"- Accelerator available: `{metadata['env'].get('accelerator_available')}`",
+        f"- Accelerator runtime: `{metadata['env'].get('accelerator_runtime_kind')}`",
+        f"- Accelerator device: `{metadata['env'].get('accelerator_device_display_name')}`",
+        f"- CUDA version: `{metadata['env'].get('cuda_version') or 'none'}`",
+        f"- HIP version: `{metadata['env'].get('hip_version') or 'none'}`",
         "",
         "## Results",
         "",
-        "| Case | Lane | Status | Engine | Device | Median Wall Clock (s) | Throughput (samples/s) | Mean Prediction |",
-        "|---|---|---|---|---|---:|---:|---:|",
+        "| Case | Lane | Status | Engine | Backend | Runtime | Device | Median Wall Clock (s) | Throughput (samples/s) | Mean Prediction |",
+        "|---|---|---|---|---|---|---|---:|---:|---:|",
     ]
     for row in rows:
         lines.append(
             "| "
-            f"{row['case_id']} | {row['lane']} | {row['status']} | {row['selected_engine']} | {row['device_name']} | "
+            f"{row['case_id']} | {normalize_lane_name(str(row['lane']))} | {row['status']} | {row['selected_engine']} | "
+            f"{row.get('backend_kind', 'unknown')} | {row.get('runtime_kind', 'unknown')} | "
+            f"{row.get('device_display_name', row['device_name'])} | "
             f"{float(row['wall_clock_sec']):.6f} | {float(row['throughput_samples_per_sec']):.3f} | "
             f"{float(row['mean_prediction']):.6f} |"
         )
@@ -72,7 +81,7 @@ def build_report_markdown(
     for record in fidelity_records:
         lines.append(
             "| "
-            f"{record['pair']} | {record['status']} | {float(record['max_abs_delta']):.6e} | "
+            f"{normalize_fidelity_pair_name(str(record['pair']))} | {record['status']} | {float(record['max_abs_delta']):.6e} | "
             f"{float(record['mean_abs_delta']):.6e} | {float(record['threshold_max_abs_delta']):.6e} | "
             f"{float(record['threshold_mean_abs_delta']):.6e} |"
         )
@@ -84,7 +93,8 @@ def build_report_markdown(
             "",
             "- `cpu_existing` uses `AnalyticalSRAMModel.generate_dataset()` with the fitted perceptron `.predict()` path.",
             "- `cpu_numpy` uses chunked analytical generation plus explicit NumPy forward.",
-            "- `gpu_pytorch` is optional and records `skipped` when CUDA-capable PyTorch is unavailable or when the suite is forced to CPU mode.",
+            "- `torch_accelerated` is the canonical accelerator lane and is currently CUDA-validated when a compatible PyTorch build is installed.",
+            "- ROCm validation remains pending real AMD hardware access; a skipped accelerator row is not evidence of ROCm support.",
         ]
     )
     text = "\n".join(lines) + "\n"
@@ -111,12 +121,12 @@ def build_fidelity_markdown(
     for record in fidelity_records:
         lines.append(
             "| "
-            f"{record['pair']} | {record['status']} | {float(record['max_abs_delta']):.6e} | "
+            f"{normalize_fidelity_pair_name(str(record['pair']))} | {record['status']} | {float(record['max_abs_delta']):.6e} | "
             f"{float(record['mean_abs_delta']):.6e} | {float(record['rmse']):.6e} | "
             f"{float(record['threshold_max_abs_delta']):.6e} | {float(record['threshold_mean_abs_delta']):.6e} |"
         )
         if record.get("detail"):
-            detail_lines.append(f"- {record['pair']}: {record['detail']}")
+            detail_lines.append(f"- {normalize_fidelity_pair_name(str(record['pair']))}: {record['detail']}")
     if detail_lines:
         lines.extend(["", "## Details", ""])
         lines.extend(detail_lines)

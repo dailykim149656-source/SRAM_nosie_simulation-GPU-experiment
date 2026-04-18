@@ -19,6 +19,9 @@ def capability() -> BackendCapability:
         reason="always-available",
         fallback_allowed=False,
         precision="float64",
+        backend_kind="cpu",
+        runtime_kind="cpu",
+        device_display_name="cpu",
     )
 
 
@@ -98,4 +101,7 @@ def run_case(
         elapsed_sec=float(elapsed),
         predictions=predictions,
         extra={"dataset_shape": tuple(dataset["X"].shape)},
+        backend_kind="cpu",
+        runtime_kind="cpu",
+        device_display_name="cpu",
     )

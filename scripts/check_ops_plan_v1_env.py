@@ -15,6 +15,8 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
+from backends.torch_portable import get_torch_runtime_metadata
+
 
 def check_python_module(name: str) -> tuple[bool, str]:
     try:
@@ -22,6 +24,31 @@ def check_python_module(name: str) -> tuple[bool, str]:
         return True, "ok"
     except Exception as exc:
         return False, f"{exc.__class__.__name__}: {exc}"
+
+
+def collect_torch_runtime_check_records() -> list[dict[str, object]]:
+    available_torch, torch_detail = check_python_module("torch")
+    if not available_torch:
+        return [
+            {"name": "python_module:torch", "ok": False, "detail": torch_detail},
+            {"name": "accelerator:torch", "ok": False, "detail": "torch-unavailable"},
+            {"name": "accelerator_runtime:torch", "ok": False, "detail": "torch-unavailable"},
+        ]
+
+    runtime = get_torch_runtime_metadata()
+    build_detail = (
+        f"backend_kind={runtime.backend_kind};"
+        f"runtime_kind={runtime.runtime_kind};"
+        f"torch_build_tag={runtime.torch_build_tag or 'none'};"
+        f"cuda_version={runtime.cuda_version or 'none'};"
+        f"hip_version={runtime.hip_version or 'none'}"
+    )
+    availability_detail = runtime.device_display_name if runtime.accelerator_available else runtime.reason
+    return [
+        {"name": "python_module:torch", "ok": True, "detail": "ok"},
+        {"name": "accelerator:torch", "ok": bool(runtime.accelerator_available), "detail": availability_detail},
+        {"name": "accelerator_runtime:torch", "ok": True, "detail": build_detail},
+    ]
 
 
 def main() -> int:
@@ -52,15 +79,8 @@ def main() -> int:
     xyce_bin = Path(r"C:\Program Files\XyceNF_7.10\bin\Xyce.exe")
     record("binary:xyce", xyce_bin.exists(), str(xyce_bin))
 
-    available_torch, torch_detail = check_python_module("torch")
-    if available_torch:
-        import torch  # type: ignore
-
-        record("python_module:torch", True, "ok")
-        record("cuda:torch", bool(torch.cuda.is_available()), torch.cuda.get_device_name(0) if torch.cuda.is_available() else "cuda-unavailable")
-    else:
-        record("python_module:torch", False, torch_detail)
-        record("cuda:torch", False, "torch-unavailable")
+    for entry in collect_torch_runtime_check_records():
+        record(str(entry["name"]), bool(entry["ok"]), str(entry["detail"]))
 
     pdk_run_configs = manifest.get("pdk_run_configs", {})
     if isinstance(pdk_run_configs, dict):

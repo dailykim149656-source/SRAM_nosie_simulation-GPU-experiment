@@ -1,6 +1,6 @@
 # Benchmark Methodology
 
-This repository now treats the analytical SRAM benchmark as a reproducible engineering asset rather than a one-off script.
+This repository treats the analytical SRAM benchmark as a reproducible engineering asset rather than a one-off script.
 
 ## Suites
 
@@ -24,9 +24,11 @@ This repository now treats the analytical SRAM benchmark as a reproducible engin
 - `cpu_numpy`
   - Uses chunked analytical dataset generation
   - Uses explicit NumPy forward on exported perceptron weights
-- `gpu_pytorch`
-  - Uses the PyTorch dataset/inference path on CUDA
-  - Records `skipped` when CUDA-capable PyTorch is unavailable or when the suite is forced to CPU mode
+- `torch_accelerated`
+  - Uses the PyTorch dataset and inference path
+  - Is currently CUDA-validated when a compatible PyTorch build is installed
+  - Records `skipped` when no accelerator runtime is available or when the suite is forced to CPU mode
+  - Historical artifacts may still show the legacy alias `gpu_pytorch`
 
 ## Timing Rules
 
@@ -41,12 +43,12 @@ This repository now treats the analytical SRAM benchmark as a reproducible engin
 - This isolates inference-path drift from dataset-sampling differences.
 - Current smoke checks:
   - `cpu_existing` vs `cpu_numpy`
-  - `cpu_existing` vs `gpu_pytorch` when CUDA is available
+  - `cpu_existing` vs `torch_accelerated` when the accelerator lane is available
 - Thresholds:
   - CPU existing vs CPU NumPy:
     - max abs delta `<= 1e-6`
     - mean abs delta `<= 1e-7`
-  - CPU existing vs GPU PyTorch:
+  - CPU existing vs torch accelerated:
     - max abs delta `<= 1e-3`
     - mean abs delta `<= 1e-4`
 
@@ -59,6 +61,13 @@ Each run writes:
 - `report.md`
 - `fidelity.md`
 - optional `plots/*.png` when Matplotlib is available
+
+Fresh metadata also records:
+
+- `validation_scope`
+- `claim_level`
+- accelerator backend/runtime fields
+- `torch_build_tag`, `cuda_version`, and `hip_version`
 
 The default artifact root is `artifacts/benchmarks/`.
 
@@ -81,5 +90,10 @@ When a CUDA-capable PyTorch install is available:
 
 1. Run `python -m benchmarks.cli --suite smoke --device auto`
 2. Run `python -m benchmarks.validate --artifact-dir artifacts/benchmarks/<run_id>`
-3. Confirm the `gpu_pytorch` row is `pass` rather than `skipped`
-4. Inspect `fidelity.md` for the CPU vs GPU parity thresholds
+3. Confirm the `torch_accelerated` row is `pass` rather than `skipped`
+4. Inspect `fidelity.md` for the CPU vs accelerator parity thresholds
+
+## ROCm Position
+
+- ROCm validation is still pending AMD hardware access.
+- The purpose of the new artifact schema is to keep CUDA-measured evidence separate from ROCm-planned preparation work.

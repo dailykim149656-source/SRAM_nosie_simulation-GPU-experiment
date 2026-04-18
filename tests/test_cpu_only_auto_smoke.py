@@ -36,6 +36,6 @@ class CpuOnlyAutoSmokeTests(unittest.TestCase):
             with results_path.open("r", encoding="utf-8", newline="") as fp:
                 rows = list(csv.DictReader(fp))
 
-            gpu_rows = [row for row in rows if row["lane"] == "gpu_pytorch"]
+            gpu_rows = [row for row in rows if row["lane"] == "torch_accelerated"]
             self.assertEqual(len(gpu_rows), 1)
             self.assertIn(gpu_rows[0]["status"], {"skipped", "unsupported"})

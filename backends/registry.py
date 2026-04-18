@@ -4,12 +4,12 @@ from __future__ import annotations
 
 from typing import Any
 
-from backends import cpu_existing, cpu_numpy, cuda_lane
+from backends import accelerator_lane, cpu_existing, cpu_numpy
 from backends.base import BackendCapability
-from backends.torch_portable import torch_accelerator_info
+from backends.torch_portable import get_torch_runtime_metadata
 
 
-LANE_ORDER = ("cpu_existing", "cpu_numpy", "gpu_pytorch")
+LANE_ORDER = ("cpu_existing", "cpu_numpy", "torch_accelerated")
 RUNTIME_GPU_FUNCTIONS = {
     "simulate": "simulate_array_gpu",
     "lifetime": "predict_lifetime_gpu",
@@ -26,12 +26,16 @@ def get_backend_capabilities(device_mode: str = "auto") -> list[BackendCapabilit
     return [
         cpu_existing.capability(),
         cpu_numpy.capability(),
-        cuda_lane.capability(device_mode=device_mode),
+        accelerator_lane.capability(device_mode=device_mode),
     ]
 
 
+def get_accelerator_backend_capability(device_mode: str = "auto") -> BackendCapability:
+    return accelerator_lane.capability(device_mode=device_mode)
+
+
 def get_gpu_backend_capability(device_mode: str = "auto") -> BackendCapability:
-    return cuda_lane.capability(device_mode=device_mode)
+    return get_accelerator_backend_capability(device_mode=device_mode)
 
 
 def get_runtime_backend_capabilities(
@@ -41,7 +45,11 @@ def get_runtime_backend_capabilities(
 ) -> list[BackendCapability]:
     gpu_function = RUNTIME_GPU_FUNCTIONS.get(problem_kind, "")
     cpu_function = RUNTIME_CPU_FUNCTIONS.get(problem_kind, "")
-    accelerator_available, accelerator_kind, accelerator_detail = torch_accelerator_info()
+    runtime = get_torch_runtime_metadata()
+    accelerator_available = runtime.accelerator_available
+    accelerator_kind = runtime.backend_kind if runtime.accelerator_available else "cpu"
+    accelerator_detail = runtime.device_display_name if runtime.accelerator_available else runtime.reason
+    runtime_kind = runtime.runtime_kind
 
     native_gpu_available = bool(
         accelerator_available and native_module is not None and gpu_function and hasattr(native_module, gpu_function)
@@ -60,6 +68,9 @@ def get_runtime_backend_capabilities(
             ),
             fallback_allowed=True,
             precision="float64",
+            backend_kind=accelerator_kind if accelerator_available else "unknown",
+            runtime_kind=runtime_kind if accelerator_available else "unavailable",
+            device_display_name=runtime.device_display_name if accelerator_available else accelerator_detail,
         ),
         BackendCapability(
             name=f"{problem_kind}_torch_accelerated",
@@ -68,6 +79,9 @@ def get_runtime_backend_capabilities(
             reason="torch-accelerator-available" if accelerator_available else accelerator_detail,
             fallback_allowed=True,
             precision="float64",
+            backend_kind=accelerator_kind if accelerator_available else "unknown",
+            runtime_kind=runtime_kind if accelerator_available else "unavailable",
+            device_display_name=runtime.device_display_name if accelerator_available else accelerator_detail,
         ),
         BackendCapability(
             name=f"{problem_kind}_native_cpu",
@@ -76,6 +90,9 @@ def get_runtime_backend_capabilities(
             reason="native-cpu-available" if native_cpu_available else "native-cpu-hook-missing",
             fallback_allowed=True,
             precision="mixed",
+            backend_kind="cpu",
+            runtime_kind="cpu",
+            device_display_name="cpu",
         ),
         BackendCapability(
             name=f"{problem_kind}_python_fallback",
@@ -84,5 +101,8 @@ def get_runtime_backend_capabilities(
             reason="always-available",
             fallback_allowed=False,
             precision="mixed",
+            backend_kind="cpu",
+            runtime_kind="cpu",
+            device_display_name="cpu",
         ),
     ]

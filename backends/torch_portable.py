@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import asdict, dataclass
 import os
 from typing import Any
 
@@ -17,6 +17,9 @@ except Exception:  # pragma: no cover - optional dependency
 @dataclass
 class TorchExportedPerceptron:
     device: str
+    backend_kind: str
+    runtime_kind: str
+    device_display_name: str
     x_mean: Any
     x_std: Any
     y_mean: float
@@ -27,62 +30,160 @@ class TorchExportedPerceptron:
     b2: float
 
 
+@dataclass(frozen=True)
+class TorchRuntimeInfo:
+    accelerator_available: bool
+    torch_device: str
+    backend_kind: str
+    runtime_kind: str
+    device_display_name: str
+    torch_version: str | None
+    torch_build_tag: str | None
+    cuda_version: str | None
+    hip_version: str | None
+    reason: str
+
+    def to_metadata(self) -> dict[str, object]:
+        return asdict(self)
+
+
+def _torch_version_string() -> str | None:
+    if torch is None:
+        return None
+    return str(getattr(torch, "__version__", "unknown"))
+
+
+def _torch_build_tag(torch_version: str | None) -> str | None:
+    if not torch_version:
+        return None
+    if "+" not in torch_version:
+        return None
+    return torch_version.split("+", 1)[1] or None
+
+
+def _cpu_runtime(reason: str) -> TorchRuntimeInfo:
+    torch_version = _torch_version_string()
+    return TorchRuntimeInfo(
+        accelerator_available=False,
+        torch_device="cpu",
+        backend_kind="cpu",
+        runtime_kind="cpu",
+        device_display_name="cpu",
+        torch_version=torch_version,
+        torch_build_tag=_torch_build_tag(torch_version),
+        cuda_version=getattr(getattr(torch, "version", None), "cuda", None) if torch is not None else None,
+        hip_version=getattr(getattr(torch, "version", None), "hip", None) if torch is not None else None,
+        reason=reason,
+    )
+
+
+def get_torch_runtime_metadata() -> TorchRuntimeInfo:
+    force_cpu = os.environ.get("SRAM_FORCE_CPU", "").strip().lower() in {"1", "true", "yes"}
+    if force_cpu:
+        return _cpu_runtime("forced_cpu_env")
+    if torch is None:
+        return TorchRuntimeInfo(
+            accelerator_available=False,
+            torch_device="cpu",
+            backend_kind="unknown",
+            runtime_kind="unavailable",
+            device_display_name="torch-unavailable",
+            torch_version=None,
+            torch_build_tag=None,
+            cuda_version=None,
+            hip_version=None,
+            reason="torch-unavailable",
+        )
+
+    torch_version = _torch_version_string()
+    hip_version = getattr(getattr(torch, "version", None), "hip", None)
+    cuda_version = getattr(getattr(torch, "version", None), "cuda", None)
+    if not bool(torch.cuda.is_available()):
+        return TorchRuntimeInfo(
+            accelerator_available=False,
+            torch_device="cpu",
+            backend_kind="unknown",
+            runtime_kind="unavailable",
+            device_display_name="accelerator-unavailable",
+            torch_version=torch_version,
+            torch_build_tag=_torch_build_tag(torch_version),
+            cuda_version=cuda_version,
+            hip_version=hip_version,
+            reason="accelerator-unavailable",
+        )
+
+    backend_kind = "hip" if hip_version else "cuda"
+    runtime_kind = "rocm" if hip_version else "cuda"
+    return TorchRuntimeInfo(
+        accelerator_available=True,
+        torch_device="cuda",
+        backend_kind=backend_kind,
+        runtime_kind=runtime_kind,
+        device_display_name=str(torch.cuda.get_device_name(0)),
+        torch_version=torch_version,
+        torch_build_tag=_torch_build_tag(torch_version),
+        cuda_version=cuda_version,
+        hip_version=hip_version,
+        reason=f"{backend_kind}-ready",
+    )
+
+
 def torch_cuda_info() -> tuple[bool, str]:
     available, _, detail = torch_accelerator_info()
     return available, detail
 
 
 def torch_accelerator_info() -> tuple[bool, str, str]:
-    force_cpu = os.environ.get("SRAM_FORCE_CPU", "").strip().lower() in {"1", "true", "yes"}
-    if force_cpu:
-        return False, "cpu", "forced_cpu_env"
-    if torch is None:
-        return False, "cpu", "torch-unavailable"
-    if not bool(torch.cuda.is_available()):
-        return False, "cpu", "cuda-unavailable"
+    runtime = get_torch_runtime_metadata()
+    if runtime.accelerator_available:
+        return True, runtime.backend_kind, runtime.device_display_name
+    return False, "cpu", runtime.reason
 
-    hip_version = getattr(getattr(torch, "version", None), "hip", None)
-    backend_kind = "hip" if hip_version else "cuda"
-    return True, backend_kind, str(torch.cuda.get_device_name(0))
+
+def resolve_torch_runtime(device: str = "auto") -> TorchRuntimeInfo:
+    requested = str(device).strip().lower() or "auto"
+    if requested == "cpu":
+        return _cpu_runtime("device_mode_cpu")
+
+    runtime = get_torch_runtime_metadata()
+    if requested == "auto":
+        return runtime if runtime.accelerator_available else _cpu_runtime(runtime.reason)
+
+    if requested in {"gpu", "accelerator", "cuda", "hip"}:
+        if runtime.accelerator_available:
+            return runtime
+        raise RuntimeError(f"Accelerator-capable PyTorch is unavailable ({runtime.reason})")
+
+    return TorchRuntimeInfo(
+        accelerator_available=False,
+        torch_device=requested,
+        backend_kind=requested,
+        runtime_kind=requested,
+        device_display_name=requested,
+        torch_version=_torch_version_string(),
+        torch_build_tag=_torch_build_tag(_torch_version_string()),
+        cuda_version=getattr(getattr(torch, "version", None), "cuda", None) if torch is not None else None,
+        hip_version=getattr(getattr(torch, "version", None), "hip", None) if torch is not None else None,
+        reason="explicit-device",
+    )
 
 
 def resolve_torch_accelerator(device: str = "auto") -> tuple[str, str, str]:
-    requested = str(device).strip().lower() or "auto"
-    if requested == "cpu":
-        return "cpu", "cpu", "cpu"
-
-    force_cpu = os.environ.get("SRAM_FORCE_CPU", "").strip().lower() in {"1", "true", "yes"}
-    if force_cpu:
-        if requested == "auto":
-            return "cpu", "cpu", "cpu"
-        raise RuntimeError("Accelerator-capable PyTorch is unavailable (forced_cpu_env)")
-
-    if torch is None:
-        if requested == "auto":
-            return "cpu", "cpu", "cpu"
-        raise RuntimeError("PyTorch is unavailable")
-
-    if requested in {"auto", "gpu", "accelerator", "cuda", "hip"}:
-        if bool(torch.cuda.is_available()):
-            hip_version = getattr(getattr(torch, "version", None), "hip", None)
-            backend_kind = "hip" if hip_version else "cuda"
-            return "cuda", backend_kind, str(torch.cuda.get_device_name(0))
-        if requested == "auto":
-            return "cpu", "cpu", "cpu"
-        raise RuntimeError("Accelerator-capable PyTorch is unavailable")
-
-    return requested, requested, requested
+    runtime = resolve_torch_runtime(device)
+    return runtime.torch_device, runtime.backend_kind, runtime.device_display_name
 
 
 def resolve_torch_device(device: str = "auto") -> tuple[str, str]:
-    torch_device, _, display_name = resolve_torch_accelerator(device)
-    return torch_device, display_name
+    runtime = resolve_torch_runtime(device)
+    return runtime.torch_device, runtime.device_display_name
 
 
-def synchronize_torch_device(device: str) -> None:
+def synchronize_torch_device(device: str, backend_kind: str | None = None) -> None:
     if torch is None:
         return
-    if str(device).strip().lower() == "cuda":
+    normalized_device = str(device).strip().lower()
+    normalized_backend = str(backend_kind).strip().lower() if backend_kind is not None else ""
+    if normalized_device == "cuda" and normalized_backend in {"", "cuda", "hip"}:
         torch.cuda.synchronize()
 
 
@@ -97,7 +198,8 @@ def build_torch_dataset(
     if torch is None:
         raise RuntimeError("PyTorch is unavailable")
 
-    device_name, _ = resolve_torch_device(device)
+    runtime = resolve_torch_runtime(device)
+    device_name = runtime.torch_device
     gen = torch.Generator(device=device_name)
     gen.manual_seed(int(seed))
     n = int(n_samples)
@@ -149,9 +251,13 @@ def export_perceptron_to_torch(model: Any, *, device: str = "cuda") -> TorchExpo
     if torch is None:
         raise RuntimeError("PyTorch is unavailable")
 
-    device_name, _ = resolve_torch_device(device)
+    runtime = resolve_torch_runtime(device)
+    device_name = runtime.torch_device
     return TorchExportedPerceptron(
         device=device_name,
+        backend_kind=runtime.backend_kind,
+        runtime_kind=runtime.runtime_kind,
+        device_display_name=runtime.device_display_name,
         x_mean=torch.tensor(model.x_mean_, dtype=torch.float32, device=device_name),
         x_std=torch.tensor(model.x_std_, dtype=torch.float32, device=device_name),
         y_mean=float(model.y_mean_),

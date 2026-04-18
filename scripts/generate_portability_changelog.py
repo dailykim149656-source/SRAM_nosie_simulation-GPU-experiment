@@ -16,6 +16,20 @@ if str(REPO_ROOT) not in sys.path:
 from benchmarks.schema import validate_report_text
 
 
+def _normalize_detail_text(text: str) -> str:
+    normalized = str(text)
+    replacements = (
+        ("GPU lane", "accelerator lane"),
+        ("gpu lane", "accelerator lane"),
+        ("GPU fidelity", "accelerator fidelity"),
+        ("GPU PyTorch", "`torch_accelerated`"),
+        ("CUDA PyTorch", "`torch_accelerated`"),
+    )
+    for source, target in replacements:
+        normalized = normalized.replace(source, target)
+    return normalized
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description="Generate portability changelog")
     parser.add_argument(
@@ -50,7 +64,7 @@ def main() -> int:
         "",
     ]
     for entry in passed:
-        lines.append(f"- `{entry['name']}`: {entry['detail']}")
+        lines.append(f"- `{entry['name']}`: {_normalize_detail_text(str(entry['detail']))}")
 
     lines.extend(
         [

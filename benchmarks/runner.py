@@ -7,8 +7,8 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
-from backends import cpu_existing, cpu_numpy, cuda_lane
-from backends.registry import LANE_ORDER, get_gpu_backend_capability
+from backends import accelerator_lane, cpu_existing, cpu_numpy
+from backends.registry import LANE_ORDER, get_accelerator_backend_capability
 from benchmarks.cases import BenchmarkCase, get_suite_cases, parse_cases
 from benchmarks.env import collect_env_metadata
 from benchmarks.metrics import compare_predictions, summarize_elapsed, summarize_predictions
@@ -31,7 +31,7 @@ DEFAULT_FIDELITY_THRESHOLDS: dict[str, dict[str, float]] = {
         "max_abs_delta": 1e-6,
         "mean_abs_delta": 1e-7,
     },
-    "cpu_existing_vs_gpu_pytorch": {
+    "cpu_existing_vs_torch_accelerated": {
         "max_abs_delta": 1e-3,
         "mean_abs_delta": 1e-4,
     },
@@ -61,9 +61,24 @@ def _suite_training_iterations(suite: str) -> int:
 
 
 def _status_for_capability(reason: str) -> str:
-    if reason in {"torch-unavailable", "cuda-unavailable", "device_mode_cpu"}:
+    if reason in {"torch-unavailable", "accelerator-unavailable", "device_mode_cpu", "forced_cpu_env"}:
         return "skipped"
     return "unsupported"
+
+
+def _resolve_validation_scope(rows: list[dict[str, object]]) -> str:
+    accelerated_rows = [
+        row
+        for row in rows
+        if str(row.get("lane", "")) == "torch_accelerated" and str(row.get("status", "")) == "pass"
+    ]
+    if not accelerated_rows:
+        return "cpu_validated"
+    if any(str(row.get("backend_kind", "")) == "hip" for row in accelerated_rows):
+        return "rocm_validated"
+    if any(str(row.get("backend_kind", "")) == "cuda" for row in accelerated_rows):
+        return "cuda_validated"
+    return "accelerator_validated"
 
 
 def _run_lane(
@@ -78,7 +93,7 @@ def _run_lane(
     model: object,
     exported_gpu_model: object | None,
 ) -> dict[str, object]:
-    compute_mode = "gpu" if lane == "gpu_pytorch" and device_mode != "cpu" else "cpu"
+    compute_mode = "gpu" if lane == "torch_accelerated" and device_mode != "cpu" else "cpu"
     selected_engine, selection_reason, work_size, gpu_detected = select_engine(
         "analytical_dataset",
         {
@@ -92,25 +107,27 @@ def _run_lane(
     if lane == "cpu_existing":
         run_callable = cpu_existing.run_case
         runner_arg = model
-        capability_reason = cpu_existing.capability().reason
+        lane_capability = cpu_existing.capability()
     elif lane == "cpu_numpy":
         run_callable = cpu_numpy.run_case
         runner_arg = model
-        capability_reason = cpu_numpy.capability().reason
+        lane_capability = cpu_numpy.capability()
     else:
-        gpu_cap = get_gpu_backend_capability(device_mode=device_mode)
-        capability_reason = gpu_cap.reason
-        if not gpu_cap.available or exported_gpu_model is None:
+        lane_capability = get_accelerator_backend_capability(device_mode=device_mode)
+        if not lane_capability.available or exported_gpu_model is None:
             return {
                 "case_id": case.case_id,
                 "lane": lane,
-                "status": _status_for_capability(gpu_cap.reason),
+                "status": _status_for_capability(lane_capability.reason),
                 "selected_engine": selected_engine,
                 "selection_reason": selection_reason,
-                "backend_reason": gpu_cap.reason,
+                "backend_reason": lane_capability.reason,
                 "work_size": work_size,
                 "gpu_detected": bool(gpu_detected),
-                "device_name": gpu_cap.reason,
+                "device_name": lane_capability.device_display_name or lane_capability.reason,
+                "device_display_name": lane_capability.device_display_name or lane_capability.reason,
+                "backend_kind": lane_capability.backend_kind,
+                "runtime_kind": lane_capability.runtime_kind,
                 "wall_clock_sec": 0.0,
                 "wall_clock_sec_mean": 0.0,
                 "wall_clock_sec_std": 0.0,
@@ -121,8 +138,9 @@ def _run_lane(
                 "repeat_runs": int(repeat_runs),
                 "warmup_runs": int(warmup_runs),
             }
-        run_callable = cuda_lane.run_case
+        run_callable = accelerator_lane.run_case
         runner_arg = exported_gpu_model
+    capability_reason = lane_capability.reason
 
     for warmup_index in range(max(int(warmup_runs), 0)):
         run_callable(
@@ -156,6 +174,9 @@ def _run_lane(
         "work_size": work_size,
         "gpu_detected": bool(gpu_detected),
         "device_name": device_name,
+        "device_display_name": str(getattr(output, "device_display_name", "")) or device_name,
+        "backend_kind": str(getattr(output, "backend_kind", lane_capability.backend_kind)),
+        "runtime_kind": str(getattr(output, "runtime_kind", lane_capability.runtime_kind)),
         "repeat_runs": int(repeat_runs),
         "warmup_runs": int(warmup_runs),
     }
@@ -201,14 +222,14 @@ def _build_fidelity_records(
         }
     ]
 
-    gpu_cap = get_gpu_backend_capability(device_mode=device_mode)
-    gpu_threshold = DEFAULT_FIDELITY_THRESHOLDS["cpu_existing_vs_gpu_pytorch"]
+    gpu_cap = get_accelerator_backend_capability(device_mode=device_mode)
+    gpu_threshold = DEFAULT_FIDELITY_THRESHOLDS["cpu_existing_vs_torch_accelerated"]
     if exported_gpu_model is not None and gpu_cap.available:
-        gpu_pred = cuda_lane.predict_on_features(exported_gpu_model, x)
+        gpu_pred = accelerator_lane.predict_on_features(exported_gpu_model, x)
         gpu_delta = compare_predictions(reference, gpu_pred)
         records.append(
             {
-                "pair": "cpu_existing_vs_gpu_pytorch",
+                "pair": "cpu_existing_vs_torch_accelerated",
                 "status": (
                     "pass"
                     if gpu_delta["max_abs_delta"] <= gpu_threshold["max_abs_delta"]
@@ -220,20 +241,20 @@ def _build_fidelity_records(
                 "max_abs_delta": gpu_delta["max_abs_delta"],
                 "mean_abs_delta": gpu_delta["mean_abs_delta"],
                 "rmse": gpu_delta["rmse"],
-                "detail": "Common CPU feature matrix with CUDA PyTorch forward check.",
+                "detail": "Common CPU feature matrix with the canonical torch_accelerated lane.",
             }
         )
     else:
         records.append(
             {
-                "pair": "cpu_existing_vs_gpu_pytorch",
+                "pair": "cpu_existing_vs_torch_accelerated",
                 "status": _status_for_capability(gpu_cap.reason),
                 "threshold_max_abs_delta": gpu_threshold["max_abs_delta"],
                 "threshold_mean_abs_delta": gpu_threshold["mean_abs_delta"],
                 "max_abs_delta": 0.0,
                 "mean_abs_delta": 0.0,
                 "rmse": 0.0,
-                "detail": f"GPU fidelity skipped: {gpu_cap.reason}.",
+                "detail": f"Accelerator fidelity skipped: {gpu_cap.reason}.",
             }
         )
     return records
@@ -273,8 +294,8 @@ def run_suite(
         max_iter=_suite_training_iterations(suite_key),
     )
 
-    gpu_capability = get_gpu_backend_capability(device_mode=device_mode)
-    exported_gpu_model = cuda_lane.export_model(model) if gpu_capability.available else None
+    gpu_capability = get_accelerator_backend_capability(device_mode=device_mode)
+    exported_gpu_model = accelerator_lane.export_model(model) if gpu_capability.available else None
 
     rows = [
         _run_lane(
@@ -301,6 +322,7 @@ def run_suite(
     )
 
     env = collect_env_metadata(device_mode=device_mode)
+    validation_scope = _resolve_validation_scope(rows)
     metadata: dict[str, Any] = {
         "suite": suite_key,
         "device_mode": device_mode,
@@ -309,6 +331,8 @@ def run_suite(
         "warmup_runs": int(warmup),
         "repeat_runs": int(repeats),
         "cases": [asdict(case) for case in resolved_cases],
+        "validation_scope": validation_scope,
+        "claim_level": "measured",
         "backend_capabilities": env.pop("backend_capabilities"),
         "env": env,
         "artifact_files": ["metadata.json", "results.csv", "report.md", "fidelity.md"],

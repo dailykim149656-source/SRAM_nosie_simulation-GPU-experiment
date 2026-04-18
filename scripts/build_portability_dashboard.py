@@ -13,7 +13,7 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
-from benchmarks.schema import validate_report_text
+from benchmarks.schema import normalize_lane_name, validate_report_text
 
 
 def _load_rows(results_path: Path) -> list[dict[str, str]]:
@@ -32,19 +32,19 @@ def build_dashboard(artifact_dirs: list[Path]) -> str:
         "",
         "This dashboard summarizes representative portability benchmark artifacts produced by the standardized analytical benchmark pipeline.",
         "",
-        "| Artifact | Suite | Device Mode | CPU Existing Throughput | CPU NumPy Throughput | GPU PyTorch Throughput |",
+        "| Artifact | Suite | Device Mode | CPU Existing Throughput | CPU NumPy Throughput | Torch Accelerated Throughput |",
         "|---|---|---|---:|---:|---:|",
     ]
     for artifact_dir in artifact_dirs:
         metadata = json.loads((artifact_dir / "metadata.json").read_text(encoding="utf-8"))
         rows = _load_rows(artifact_dir / "results.csv")
-        row_map = {row["lane"]: row for row in rows}
+        row_map = {normalize_lane_name(row["lane"]): row for row in rows}
         lines.append(
             "| "
             f"{artifact_dir.name} | {metadata['suite']} | {metadata['device_mode']} | "
             f"{float(row_map['cpu_existing']['throughput_samples_per_sec']):.3f} | "
             f"{float(row_map['cpu_numpy']['throughput_samples_per_sec']):.3f} | "
-            f"{float(row_map['gpu_pytorch']['throughput_samples_per_sec']):.3f} |"
+            f"{float(row_map['torch_accelerated']['throughput_samples_per_sec']):.3f} |"
         )
     text = "\n".join(lines) + "\n"
     validate_report_text(text)

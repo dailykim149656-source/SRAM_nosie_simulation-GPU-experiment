@@ -16,7 +16,7 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
-from benchmarks.schema import contains_absolute_path
+from benchmarks.schema import contains_absolute_path, normalize_fidelity_pair_name, normalize_lane_name
 
 
 def _run(cmd: list[str], *, env: dict[str, str] | None = None) -> subprocess.CompletedProcess[str]:
@@ -73,7 +73,7 @@ def main() -> int:
         smoke_artifact = _latest_artifact(smoke_root)
         _run([sys.executable, "-m", "benchmarks.validate", "--artifact-dir", str(smoke_artifact)])
         smoke_rows = _read_csv(smoke_artifact / "results.csv")
-        gpu_smoke_rows = [row for row in smoke_rows if row["lane"] == "gpu_pytorch"]
+        gpu_smoke_rows = [row for row in smoke_rows if normalize_lane_name(row["lane"]) == "torch_accelerated"]
         if len(gpu_smoke_rows) != 1 or gpu_smoke_rows[0]["status"] not in {"skipped", "unsupported"}:
             raise AssertionError("GPU lane did not degrade gracefully in forced CPU smoke")
         record("AC-1_and_AC-3", True, "CPU-only smoke passed and GPU lane degraded gracefully")
@@ -104,13 +104,18 @@ def main() -> int:
             raise AssertionError("wrapper run did not create a new standard artifact directory")
         _run([sys.executable, "-m", "benchmarks.validate", "--artifact-dir", str(latest_default)])
         wrapper_rows = _read_csv(latest_default / "results.csv")
-        lane_names = {row["lane"] for row in wrapper_rows}
-        if lane_names != {"cpu_existing", "cpu_numpy", "gpu_pytorch"}:
+        lane_names = {normalize_lane_name(row["lane"]) for row in wrapper_rows}
+        if lane_names != {"cpu_existing", "cpu_numpy", "torch_accelerated"}:
             raise AssertionError("wrapper artifact does not include all required benchmark lanes")
         record("AC-2_and_AC-4", True, "wrapper compatibility and standard artifact lane set verified")
 
         fidelity_text = (latest_default / "fidelity.md").read_text(encoding="utf-8")
-        for needle in ("cpu_existing_vs_cpu_numpy", "cpu_existing_vs_gpu_pytorch", "Threshold Max", "Threshold Mean"):
+        for needle in (
+            normalize_fidelity_pair_name("cpu_existing_vs_cpu_numpy"),
+            normalize_fidelity_pair_name("cpu_existing_vs_gpu_pytorch"),
+            "Threshold Max",
+            "Threshold Mean",
+        ):
             if needle not in fidelity_text:
                 raise AssertionError(f"missing fidelity evidence '{needle}'")
         record("AC-5", True, "fidelity report contains pair comparisons and thresholds")
@@ -121,6 +126,12 @@ def main() -> int:
             REPO_ROOT / "docs" / "benchmark_methodology.md",
             REPO_ROOT / "docs" / "backend_portability.md",
             REPO_ROOT / "docs" / "hip_porting_plan.md",
+            REPO_ROOT / "docs" / "rocm_validation_matrix.md",
+            REPO_ROOT / "docs" / "instinct_target_profile.md",
+            REPO_ROOT / "docs" / "hipify_preflight_inventory.md",
+            REPO_ROOT / "docs" / "rocm_manual_checklist.md",
+            REPO_ROOT / "docs" / "native_backend_rocm_migration_plan.md",
+            REPO_ROOT / "docs" / "ci_future_rocm_runner_note.md",
             REPO_ROOT / "docs" / "limitations_and_claims.md",
         ):
             if contains_absolute_path(path.read_text(encoding="utf-8")):
@@ -134,7 +145,9 @@ def main() -> int:
         "## What Is Not Claimed",
         "### CPU-only benchmark smoke",
         "### Optional CUDA benchmark smoke",
+        "torch_accelerated",
         "docs/hip_porting_plan.md",
+        "docs/rocm_validation_matrix.md",
     ):
         _require_contains(readme, needle)
     record("AC-7", True, "README covers purpose, verified scope, limits, CPU/CUDA usage, and ROCm/HIP plan")
@@ -146,6 +159,7 @@ def main() -> int:
         "What Automatic Conversion Will Not Solve",
         "Manual Review Required",
         "AMD hardware is not available",
+        "rocm_validation_matrix.md",
     ):
         _require_contains(hip_plan, needle)
     record("AC-8", True, "HIP porting plan contains required inventory and limitation notes")

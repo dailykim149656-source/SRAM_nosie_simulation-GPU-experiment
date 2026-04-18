@@ -9,11 +9,11 @@ This matrix ties the portability PRD acceptance criteria to concrete repository 
 | AC-1 | complete | `python -m benchmarks.cli --suite smoke` plus forced CPU smoke verification in `scripts/verify_portability_prd.py` |
 | AC-2 | complete | `scripts/run_gpu_analytical_benchmark.py` wrapper plus standard artifact generation in `benchmarks/runner.py` |
 | AC-3 | complete | forced CPU smoke and `tests/test_cpu_only_auto_smoke.py` |
-| AC-4 | complete | `results.csv` lane set includes `cpu_existing`, `cpu_numpy`, `gpu_pytorch` |
+| AC-4 | complete | fresh `results.csv` lane set includes `cpu_existing`, `cpu_numpy`, `torch_accelerated`, with legacy `gpu_pytorch` reader normalization retained |
 | AC-5 | complete | `fidelity.md` thresholds and pair checks, plus `tests/test_fidelity_smoke.py` |
 | AC-6 | complete | `benchmarks/schema.py` path sanitization checks and `tests/test_report_generation.py` |
-| AC-7 | complete | `README.md` validated scope, limitations, CPU/CUDA usage, HIP plan link |
-| AC-8 | complete | `docs/hip_porting_plan.md` |
+| AC-7 | complete | `README.md` validated scope, limitations, CPU/CUDA usage, canonical lane wording, and ROCm document links |
+| AC-8 | complete | `docs/hip_porting_plan.md` plus the ROCm validation and migration document set |
 | AC-9 | complete | `.github/workflows/cpu-smoke.yml` |
 
 ## Functional Requirement Coverage
@@ -22,7 +22,7 @@ This matrix ties the portability PRD acceptance criteria to concrete repository 
 |---|---|
 | FR-1 Backend registry | `backends/registry.py` |
 | FR-2 CPU baseline lane | `backends/cpu_existing.py`, `backends/cpu_numpy.py` |
-| FR-3 GPU lane | `backends/cuda_lane.py` |
+| FR-3 GPU lane | `backends/accelerator_lane.py`, compatibility shim in `backends/cuda_lane.py` |
 | FR-4 Portable torch lane | `backends/torch_portable.py` |
 | FR-5 Benchmark suite CLI | `benchmarks/cli.py`, `benchmarks/run_suite.py` |
 | FR-6 Artifact schema | `benchmarks/schema.py`, `benchmarks/validate.py` |
@@ -39,9 +39,15 @@ This matrix ties the portability PRD acceptance criteria to concrete repository 
 | Item | Evidence |
 |---|---|
 | HIP porting inventory | `docs/hip_porting_plan.md` |
+| ROCm validation matrix | `docs/rocm_validation_matrix.md` |
+| Instinct target profile | `docs/instinct_target_profile.md` |
+| HIPify preflight inventory | `docs/hipify_preflight_inventory.md` |
+| ROCm manual checklist | `docs/rocm_manual_checklist.md` |
 | Linux quickstart | `README.md` |
 | Optional plots | `benchmarks/reports.py` |
 | Native portability inventory | `docs/native_backend_portability_inventory.md` |
+| Native ROCm migration note | `docs/native_backend_rocm_migration_plan.md` |
+| Future ROCm CI runner note | `docs/ci_future_rocm_runner_note.md` |
 | Optional Docker recipe | `Dockerfile.portability`, `docker/README.md` |
 | Benchmark dashboard summary | `scripts/build_portability_dashboard.py`, `reports/portability/dashboard.md` |
 | Release checklist | `docs/portability_release_checklist.md` |

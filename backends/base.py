@@ -18,6 +18,9 @@ class BackendCapability:
     reason: str
     fallback_allowed: bool
     precision: str
+    backend_kind: str = "unknown"
+    runtime_kind: str = "unknown"
+    device_display_name: str = ""
 
 
 @dataclass
@@ -28,3 +31,6 @@ class BackendRunOutput:
     elapsed_sec: float
     predictions: np.ndarray
     extra: dict[str, Any]
+    backend_kind: str = "unknown"
+    runtime_kind: str = "unknown"
+    device_display_name: str = ""

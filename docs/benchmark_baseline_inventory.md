@@ -39,6 +39,7 @@ This document freezes the analytical benchmark baseline that existed before the 
 - The wrapper script keeps the same public flags.
 - The wrapper continues to emit a CSV and Markdown report at caller-provided paths.
 - The wrapper now also writes a standard benchmark artifact directory under `artifacts/benchmarks/<run_id>/`.
+- Fresh artifacts use the canonical lane name `torch_accelerated`, while readers still normalize the historical `gpu_pytorch` alias.
 
 ## Known Pre-P0 Gaps
 

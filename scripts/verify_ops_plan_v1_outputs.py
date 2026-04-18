@@ -6,10 +6,15 @@ import argparse
 import csv
 import json
 import re
+import sys
 from pathlib import Path
 
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
+if str(REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(REPO_ROOT))
+
+from benchmarks.schema import CANONICAL_ACCELERATOR_LANE, normalize_lane_name
 
 
 def load_manifest(path: Path) -> dict[str, object]:
@@ -35,6 +40,23 @@ def require_contains(path: Path, needle: str) -> None:
     text = path.read_text(encoding="utf-8")
     if needle not in text:
         raise AssertionError(f"missing '{needle}' in {path}")
+
+
+def validate_ops_plan_accelerator_rows(rows: list[dict[str, str]]) -> None:
+    if len(rows) != 9:
+        raise AssertionError(f"expected 9 gpu benchmark rows, found {len(rows)}")
+
+    saw_accelerator_lane = False
+    for row in rows:
+        normalized_lane = normalize_lane_name(row["lane"])
+        if normalized_lane != CANONICAL_ACCELERATOR_LANE:
+            continue
+        saw_accelerator_lane = True
+        if row["status"] == "pass" and row["selected_engine"] != "gpu":
+            raise AssertionError("accelerator row passed without gpu engine selection")
+
+    if not saw_accelerator_lane:
+        raise AssertionError(f"missing accelerator lane rows normalized to '{CANONICAL_ACCELERATOR_LANE}'")
 
 
 def main() -> int:
@@ -110,15 +132,11 @@ def main() -> int:
     gpu_report = args.root / "gpu" / "gpu_analytical_benchmark.md"
     gpu_csv = args.root / "gpu" / "gpu_analytical_benchmark.csv"
     if not gpu_report.exists() or not gpu_csv.exists():
-        raise FileNotFoundError("gpu benchmark outputs missing")
+        raise FileNotFoundError("accelerator benchmark outputs missing")
     with gpu_csv.open("r", encoding="utf-8", newline="") as fp:
         gpu_rows = list(csv.DictReader(fp))
-    if len(gpu_rows) != 9:
-        raise AssertionError(f"expected 9 gpu benchmark rows, found {len(gpu_rows)}")
-    for row in gpu_rows:
-        if row["lane"] == "gpu_pytorch" and row["status"] == "pass" and row["selected_engine"] != "gpu":
-            raise AssertionError("gpu row passed without gpu engine selection")
-    record("gpu_benchmark", True, f"{len(gpu_rows)} benchmark rows verified")
+    validate_ops_plan_accelerator_rows(gpu_rows)
+    record("gpu_benchmark", True, f"{len(gpu_rows)} benchmark rows verified with accelerator-lane normalization")
 
     parallel_report = args.root / "parallel" / "matrix_parallel_benchmark.md"
     parallel_csv = args.root / "parallel" / "matrix_parallel_benchmark.csv"

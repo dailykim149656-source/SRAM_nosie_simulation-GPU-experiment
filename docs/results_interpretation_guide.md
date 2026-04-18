@@ -1,13 +1,13 @@
 # Results Interpretation Guide
 
-Use the portability benchmark artifacts to answer three questions separately:
+Use the portability benchmark artifacts to answer three questions separately.
 
 ## 1. Did The Run Complete Reliably?
 
 Check `results.csv` and `report.md`.
 
 - `pass`
-  - the lane executed and produced timing/prediction statistics
+  - the lane executed and produced timing and prediction statistics
 - `skipped`
   - the lane was intentionally not run in the current environment or mode
 - `unsupported`
@@ -15,7 +15,7 @@ Check `results.csv` and `report.md`.
 - `fail`
   - the lane ran but violated a validation contract
 
-Do not treat `skipped` as a benchmark failure by itself. For this repository, graceful skip behavior is expected when GPU support is unavailable.
+Do not treat `skipped` as a benchmark failure by itself. For this repository, graceful skip behavior is expected when accelerator support is unavailable.
 
 ## 2. Are The Numbers Comparable?
 
@@ -23,14 +23,15 @@ Check `fidelity.md`.
 
 - `cpu_existing_vs_cpu_numpy`
   - validates the legacy CPU inference path against the explicit NumPy forward path
-- `cpu_existing_vs_gpu_pytorch`
-  - validates the CPU reference against the CUDA PyTorch path when available
+- `cpu_existing_vs_torch_accelerated`
+  - validates the CPU reference against the canonical accelerator lane when available
 
 Interpretation:
 
-- low max/mean absolute delta means the alternate lane is numerically consistent with the CPU reference
-- a `skipped` GPU fidelity row means the environment did not provide a usable GPU lane
+- low max and mean absolute delta means the alternate lane is numerically consistent with the CPU reference
+- a `skipped` accelerator fidelity row means the environment did not provide a usable accelerator lane
 - a `fail` fidelity row means performance numbers should not be trusted until the numerical mismatch is explained
+- historical artifacts may use the legacy pair name `cpu_existing_vs_gpu_pytorch`; current readers normalize it to `cpu_existing_vs_torch_accelerated`
 
 ## 3. What Does The Timing Mean?
 
@@ -47,10 +48,10 @@ Use the median for comparison first. Use the standard deviation and p95 to judge
 
 ## Recommended Review Order
 
-1. Confirm the lane status is acceptable
-2. Confirm fidelity status is acceptable
-3. Compare median wall-clock and throughput values
-4. Read environment metadata before drawing conclusions across machines
+1. Confirm the lane status is acceptable.
+2. Confirm fidelity status is acceptable.
+3. Compare median wall-clock and throughput values.
+4. Read environment metadata before drawing conclusions across machines.
 
 ## Safe Public Narrative
 
@@ -60,6 +61,6 @@ Good summary:
 
 Bad summary:
 
-- “GPU is faster, therefore the port is correct”
-- “Skipped GPU lane means the benchmark failed”
-- “One CUDA run proves ROCm portability”
+- `GPU is faster, therefore the port is correct`
+- `Skipped GPU lane means the benchmark failed`
+- `One CUDA run proves ROCm portability`

@@ -120,7 +120,7 @@ class NativeBackendRegressionTests(unittest.TestCase):
             result = native_backend.predict_lifetime({"compute_mode": "gpu", "failure_rate": 0.01})
 
         self.assertEqual(result["_exec"]["selected"], "gpu")
-        self.assertIn("torch_hip_backend", result["_exec"]["reason"])
+        self.assertIn("torch_rocm_backend", result["_exec"]["reason"])
         capability_names = {cap["name"] for cap in result["_exec"]["capabilities"]}
         self.assertIn("lifetime_torch_accelerated", capability_names)
 

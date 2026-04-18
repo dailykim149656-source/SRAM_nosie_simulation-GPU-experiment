@@ -5,9 +5,9 @@ This repository is an SRAM surrogate and simulation codebase with a portability-
 Today it provides:
 
 - reproducible CPU benchmark artifacts
-- optional NVIDIA CUDA benchmark execution when PyTorch CUDA is available
-- fidelity checks between CPU inference paths and the CUDA PyTorch path
-- isolation of CUDA-specific logic to reduce future ROCm/HIP porting cost
+- a canonical `torch_accelerated` lane that is currently CUDA-validated when a compatible PyTorch build is available
+- fidelity checks between CPU inference paths and the canonical accelerator lane
+- isolation of accelerator-specific logic to reduce future ROCm/HIP porting cost
 
 ## What Is Validated
 
@@ -18,18 +18,20 @@ Today it provides:
   - `results.csv`
   - `report.md`
   - `fidelity.md`
+- fresh artifacts record `validation_scope`, `claim_level`, and accelerator backend/runtime metadata
 - CPU existing vs CPU NumPy inference parity is checked automatically
-- GPU lanes degrade to `skipped` or `unsupported` instead of crashing when CUDA is unavailable
+- accelerator lanes degrade to `skipped` or `unsupported` instead of crashing when an accelerator runtime is unavailable
 
 ## What Is Not Claimed
 
 - No AMD GPU or ROCm benchmark result is included
 - No HIP port is implemented in this batch
+- ROCm validation is pending AMD hardware access
 - `native_backend.py` simulate/lifetime/optimize flows are not fully migrated into the new backend package yet
 
 Use conservative wording:
 
-> CPU benchmark artifacts are reproducible today, NVIDIA CUDA support is optional, and CUDA-specific logic is isolated to reduce future ROCm/HIP porting cost.
+> CPU benchmark artifacts are reproducible today, the `torch_accelerated` lane is currently CUDA-validated when a compatible PyTorch build is installed, and ROCm validation remains pending AMD hardware access.
 
 ## Linux-First Quickstart
 
@@ -86,6 +88,8 @@ Install a CUDA-capable PyTorch build for your platform first, then run:
 python -m benchmarks.cli --suite smoke --device auto
 ```
 
+The canonical accelerator lane recorded in fresh artifacts is `torch_accelerated`. Historical artifacts may still show the legacy alias `gpu_pytorch`.
+
 ### Compatibility wrapper
 
 ```powershell
@@ -106,7 +110,7 @@ This keeps the legacy CLI flags while also writing a standard artifact directory
   - NumPy and SciPy
 - `requirements-benchmark.txt`
   - scikit-learn
-  - PyTorch is documented as an optional manual install because the correct package depends on platform and CUDA version
+  - PyTorch is documented as an optional manual install because the correct package depends on platform and accelerator runtime
 - `requirements-ui.txt`
   - Matplotlib, Streamlit, PySide6
 - `requirements-dev.txt`
@@ -118,6 +122,7 @@ This keeps the legacy CLI flags while also writing a standard artifact directory
   - `cpu_existing.py`
   - `cpu_numpy.py`
   - `torch_portable.py`
+  - `accelerator_lane.py`
   - `cuda_lane.py`
   - `registry.py`
 - `benchmarks/`
@@ -143,6 +148,7 @@ Each run writes a timestamped directory under `artifacts/benchmarks/` containing
 - `fidelity.md`
 
 New portability benchmark artifacts avoid absolute local filesystem paths.
+Fresh artifacts use the canonical lane name `torch_accelerated`, while readers and dashboards still normalize the legacy `gpu_pytorch` alias from older snapshots.
 
 ## Representative Portability Snapshots
 
@@ -200,12 +206,18 @@ python scripts/export_research_bundle.py --tag public_snapshot --skip-zip
 - `docs/benchmark_methodology.md`
 - `docs/backend_portability.md`
 - `docs/hip_porting_plan.md`
+- `docs/rocm_validation_matrix.md`
+- `docs/instinct_target_profile.md`
+- `docs/hipify_preflight_inventory.md`
+- `docs/rocm_manual_checklist.md`
 - `docs/limitations_and_claims.md`
 - `docs/results_interpretation_guide.md`
 - `docs/portability_issue_backlog.md`
 - `docs/portability_release_checklist.md`
 - `docs/prd_completion_matrix.md`
 - `docs/native_backend_portability_inventory.md`
+- `docs/native_backend_rocm_migration_plan.md`
+- `docs/ci_future_rocm_runner_note.md`
 - `docs/pdk_validation_criteria.md`
 - `docs/open_source_reliability_roadmap_2026-03-09.md`
 - `docker/README.md`
